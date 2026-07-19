@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Movies{% endblock %}
+{% block content %}
+<h3>🎬 Movies</h3>
+{% for group in groups %}
+<article>
+  <header>
+    <strong>{{ group.title }}</strong>
+    {% for entry in group.entries %}
+      <span class="venue-chip">{{ entry.venue.name if entry.venue else '?' }}</span>
+    {% endfor %}
+  </header>
+  <ul class="plain">
+    {% for entry in group.entries %}
+      {% with event = entry.event, venue = entry.venue %}{% include "_event_line.html" %}{% endwith %}
+    {% endfor %}
+  </ul>
+</article>
+{% else %}
+<p class="muted">No movies tracked yet.</p>
+{% endfor %}
+{% endblock %}

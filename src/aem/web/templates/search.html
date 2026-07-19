@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Search{% endblock %}
+{% block content %}
+<h3>🔎 Search</h3>
+<input type="search" name="q" value="{{ q }}" placeholder="Performer, movie, venue…"
+       hx-get="/search" hx-trigger="input changed delay:300ms" hx-target="#results" autofocus>
+<div id="results">
+  {% include "_search_results.html" %}
+</div>
+{% endblock %}

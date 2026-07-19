@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}AEM{% endblock %} · Austin Entertainment Monitor</title>
+  <link rel="stylesheet" href="/static/pico.min.css">
+  <script src="/static/htmx.min.js" defer></script>
+  <style>
+    .badge { display:inline-block; padding:.1rem .5rem; border-radius:.75rem;
+             font-size:.75rem; font-weight:600; vertical-align:middle; }
+    .badge.on_sale { background:#1a7f37; color:#fff; }
+    .badge.presale { background:#9a6700; color:#fff; }
+    .badge.sold_out { background:#cf222e; color:#fff; }
+    .badge.coming_soon { background:#57606a; color:#fff; }
+    .badge.unknown { background:#57606a; color:#fff; }
+    .badge.added { background:#1a7f37; color:#fff; }
+    .badge.removed { background:#cf222e; color:#fff; }
+    .badge.updated { background:#0969da; color:#fff; }
+    .badge.ticket_status { background:#8250df; color:#fff; }
+    .venue-chip { display:inline-block; padding:.05rem .45rem; border:1px solid var(--pico-muted-border-color);
+                  border-radius:.75rem; font-size:.7rem; margin-right:.25rem; }
+    .muted { color: var(--pico-muted-color); font-size:.85rem; }
+    nav strong { font-size:1.1rem; }
+    section { margin-bottom: 2.5rem; }
+    li.item { margin-bottom:.6rem; list-style:none; }
+    ul.plain { padding-left:0; }
+  </style>
+</head>
+<body>
+<main class="container">
+  <nav>
+    <ul><li><strong><a href="/" class="contrast" style="text-decoration:none">🤠 AEM</a></strong></li></ul>
+    <ul>
+      <li><a href="/">Dashboard</a></li>
+      <li><a href="/movies">Movies</a></li>
+      <li><a href="/concerts">Concerts</a></li>
+      <li><a href="/search">Search</a></li>
+    </ul>
+  </nav>
+  {% block content %}{% endblock %}
+  <footer class="muted">Austin Entertainment Monitor · times shown in {{ tz }}</footer>
+</main>
+</body>
+</html>

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}{{ event.title }}{% endblock %}
+{% block content %}
+<h3>{{ event.title }}
+  <span class="badge {{ event.ticket_status }}">{{ event.ticket_status.replace('_',' ') }}</span>
+  {% if event.status == 'removed' %}<span class="badge removed">removed</span>{% endif %}
+</h3>
+<p class="muted">
+  {{ venue.name if venue else '?' }} · {{ event.kind.replace('_',' ') }} · {{ fmt(event.starts_at) }}
+  {%- if event.ends_at %} – {{ fmt(event.ends_at, False) }}{% endif %}
+</p>
+<p>
+  {% if event.attrs.get('tour') %}<strong>{{ event.attrs.tour }}</strong><br>{% endif %}
+  {% if event.attrs.get('openers') %}with {{ event.attrs.openers | join(', ') }}<br>{% endif %}
+  {% if event.attrs.get('format') %}Format: {{ event.attrs.format }}<br>{% endif %}
+  {% if event.attrs.get('special_presentation') %}Special: {{ event.attrs.special_presentation }}<br>{% endif %}
+</p>
+<p>
+  {% if event.ticket_url %}<a role="button" href="{{ event.ticket_url }}" target="_blank">Get tickets ↗</a>{% endif %}
+  {% if event.event_url %}<a role="button" class="secondary" href="{{ event.event_url }}" target="_blank">Event page ↗</a>{% endif %}
+</p>
+
+{% if siblings %}
+<section>
+  <h5>Also showing at</h5>
+  <ul class="plain">
+    {% for s in siblings %}
+      {% with event = s.event, venue = s.venue %}{% include "_event_line.html" %}{% endwith %}
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section>
+  <h5>History</h5>
+  <p class="muted">First seen {{ fmt(event.first_seen) }} · last seen {{ fmt(event.last_seen) }}</p>
+  <ul class="plain">
+    {% for c in changes %}
+    <li class="item">
+      <span class="badge {{ c.change_type }}">{{ c.change_type.replace('_',' ') }}</span>
+      <span class="muted">{{ fmt(c.detected_at) }}</span>
+      {% if c.field_changes %}
+      <br><span class="muted">
+        {% for field, vals in c.field_changes.items() %}
+          {{ field }}: {{ vals[0] if vals[0] is not none else '—' }} → {{ vals[1] if vals[1] is not none else '—' }}{{ "; " if not loop.last }}
+        {% endfor %}
+      </span>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}

@@ -1,0 +1,16 @@
+services:
+  aem:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/data
+      - ./config/config.example.yaml:/config/config.yaml:ro
+    environment:
+      AEM_NTFY_URL: ${AEM_NTFY_URL:-}          # e.g. https://ntfy.sh/your-secret-topic
+      AEM_NTFY_OPS_URL: ${AEM_NTFY_OPS_URL:-}
+      AEM_GMAIL_USER: ${AEM_GMAIL_USER:-}
+      AEM_GMAIL_APP_PASSWORD: ${AEM_GMAIL_APP_PASSWORD:-}
+      AEM_DIGEST_TO: ${AEM_DIGEST_TO:-}
+      AEM_BASE_URL: http://localhost:8000
+      TZ: America/Chicago

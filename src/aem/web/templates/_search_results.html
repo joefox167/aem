@@ -1,0 +1,13 @@
+{% if q and not results %}
+<p class="muted">No matches for “{{ q }}”.</p>
+{% elif results %}
+<ul class="plain">
+  {% for r in results %}
+  <li class="item">
+    <a href="/event/{{ r.id }}"><strong>{{ r.title }}</strong></a>
+    <span class="badge {{ r.ticket_status }}">{{ r.ticket_status.replace('_',' ') }}</span>
+    <br><span class="muted">{{ r.venue or '?' }} · {{ r.starts_at or 'TBA' }} · {{ r.kind.replace('_',' ') }}</span>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Concerts{% endblock %}
+{% block content %}
+<h3>🎸 Concerts & Live Events</h3>
+<ul class="plain">
+{% for group in groups %}
+  {% for entry in group.entries %}
+    {% with event = entry.event, venue = entry.venue %}{% include "_event_line.html" %}{% endwith %}
+  {% endfor %}
+{% else %}
+<p class="muted">No concerts tracked yet.</p>
+{% endfor %}
+</ul>
+{% endblock %}

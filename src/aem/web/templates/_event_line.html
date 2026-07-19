@@ -1,0 +1,11 @@
+<li class="item">
+  <a href="/event/{{ event.id }}"><strong>{{ event.title }}</strong></a>
+  <span class="badge {{ event.ticket_status }}">{{ event.ticket_status.replace('_',' ') }}</span>
+  <br>
+  <span class="muted">
+    {{ venue.name if venue else '?' }} · {{ fmt(event.starts_at) }}
+    {%- if event.attrs.get('format') and event.attrs.format != 'Standard' %} · {{ event.attrs.format }}{% endif %}
+    {%- if event.attrs.get('openers') %} · with {{ event.attrs.openers | join(', ') }}{% endif %}
+  </span>
+  {% if event.ticket_url %} <a class="muted" href="{{ event.ticket_url }}" target="_blank">tickets ↗</a>{% endif %}
+</li>

@@ -1,0 +1,30 @@
+# AEM application config (mounted as ConfigMap in k8s)
+timezone: America/Chicago
+poll_minute: 7          # hourly poll runs at :07 (+ jitter)
+digest_hour: 8          # daily digest at 08:00 local time
+removal_threshold: 3    # polls an event must be absent before it is marked removed
+
+quiet_hours:
+  start: "22:00"
+  end: "08:00"
+
+# Venue slugs whose changes are always promoted to immediate alerts
+favorite_venues: []
+
+collectors:
+  acl_live:
+    enabled: true
+  bullock_imax:
+    enabled: true
+
+# Ordered notification rules; first match wins. Fields in `match` are AND-ed,
+# list values are OR-ed. `always: true` bypasses quiet hours.
+# Actions: immediate | digest | ignore
+rules:
+  - match: {change_type: ticket_status, ticket_status_to: [on_sale, presale]}
+    action: immediate
+    always: true
+  - match: {change_type: added}
+    action: immediate
+  - match: {change_type: [updated, removed, ticket_status]}
+    action: digest

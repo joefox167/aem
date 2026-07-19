@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<body style="font-family: -apple-system, Segoe UI, Roboto, sans-serif; color:#24292f; max-width:640px; margin:0 auto; padding:16px;">
+  <h2 style="border-bottom:2px solid #d0d7de; padding-bottom:8px;">🤠 Austin Entertainment Monitor</h2>
+  <p style="color:#57606a;">Daily digest — {{ date_label }} · {{ total }} change{{ 's' if total != 1 }}</p>
+
+  {% macro event_row(item) -%}
+    <li style="margin-bottom:6px;">
+      <a href="{{ base_url }}/event/{{ item.event.id }}" style="font-weight:600; color:#0969da; text-decoration:none;">{{ item.event.title }}</a>
+      {%- if item.event.attrs.get('format') and item.event.attrs['format'] != 'Standard' %} <span style="color:#8250df;">({{ item.event.attrs['format'] }})</span>{% endif %}
+      <span style="color:#57606a;"> — {{ item.when }}</span>
+      {%- if item.event.attrs.get('openers') %}<br><span style="color:#57606a; font-size:13px;">with {{ item.event.attrs['openers'] | join(', ') }}</span>{% endif %}
+      {%- if item.event.ticket_url %} <a href="{{ item.event.ticket_url }}" style="font-size:13px;">tickets</a>{% endif %}
+    </li>
+  {%- endmacro %}
+
+  {% if movies_added %}
+  <h3 style="margin-bottom:4px;">🎬 Movies Added</h3>
+  {% for venue_name, items in movies_added.items() %}
+    <p style="margin:8px 0 2px; font-weight:600;">{{ venue_name }}</p>
+    <ul style="margin:0 0 8px; padding-left:20px; list-style:none;">
+      {% for item in items %}{{ event_row(item) }}{% endfor %}
+    </ul>
+  {% endfor %}
+  {% endif %}
+
+  {% if concerts_added %}
+  <h3 style="margin-bottom:4px;">🎸 Concerts Added</h3>
+  {% for venue_name, items in concerts_added.items() %}
+    <p style="margin:8px 0 2px; font-weight:600;">{{ venue_name }}</p>
+    <ul style="margin:0 0 8px; padding-left:20px; list-style:none;">
+      {% for item in items %}{{ event_row(item) }}{% endfor %}
+    </ul>
+  {% endfor %}
+  {% endif %}
+
+  {% if ticket_changes %}
+  <h3 style="margin-bottom:4px;">🎟️ Ticket Status</h3>
+  <ul style="padding-left:20px; list-style:none;">
+    {% for item in ticket_changes %}
+    <li style="margin-bottom:6px;">
+      <strong style="color:#1a7f37;">{{ item.to_status | title }}</strong> —
+      <a href="{{ base_url }}/event/{{ item.event.id }}" style="color:#0969da; text-decoration:none;">{{ item.event.title }}</a>
+      <span style="color:#57606a;">({{ item.venue }}, {{ item.when }})</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if updated %}
+  <h3 style="margin-bottom:4px;">✏️ Updated</h3>
+  <ul style="padding-left:20px; list-style:none;">
+    {% for item in updated %}
+    <li style="margin-bottom:6px;">
+      <a href="{{ base_url }}/event/{{ item.event.id }}" style="color:#0969da; text-decoration:none;">{{ item.event.title }}</a>
+      <span style="color:#57606a;">({{ item.venue }}) — changed: {{ item.fields }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if removed %}
+  <h3 style="margin-bottom:4px;">🗑️ Removed</h3>
+  <ul style="padding-left:20px; list-style:none;">
+    {% for item in removed %}
+    <li style="margin-bottom:6px;">
+      <span style="text-decoration:line-through;">{{ item.event.title }}</span>
+      <span style="color:#57606a;">({{ item.venue }}, was {{ item.when }})</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if total == 0 %}<p>No changes since the last digest.</p>{% endif %}
+
+  <p style="color:#8c959f; font-size:12px; border-top:1px solid #d0d7de; margin-top:24px; padding-top:8px;">
+    <a href="{{ base_url }}" style="color:#8c959f;">Open dashboard</a> · AEM
+  </p>
+</body>
+</html>

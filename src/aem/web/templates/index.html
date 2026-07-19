@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+
+<section>
+  <h3>🆕 New Today</h3>
+  {% if new_today %}
+  <ul class="plain">
+    {% for item in new_today %}
+      {% with event = item.event, venue = item.venue %}{% include "_event_line.html" %}{% endwith %}
+    {% endfor %}
+  </ul>
+  {% else %}<p class="muted">Nothing new in the last 24 hours.</p>{% endif %}
+</section>
+
+<section>
+  <h3>📅 Upcoming (next 14 days)</h3>
+  {% if upcoming %}
+  <ul class="plain">
+    {% for item in upcoming %}
+      {% with event = item.event, venue = item.venue %}{% include "_event_line.html" %}{% endwith %}
+    {% endfor %}
+  </ul>
+  {% else %}<p class="muted">No dated events in the next two weeks.</p>{% endif %}
+</section>
+
+<section>
+  <h3>🔄 Recent Changes (7 days)</h3>
+  {% if recent %}
+  <ul class="plain">
+    {% for item in recent %}
+    <li class="item">
+      <span class="badge {{ item.change.change_type }}">{{ item.change.change_type.replace('_',' ') }}</span>
+      <a href="/event/{{ item.event.id }}">{{ item.event.title }}</a>
+      <span class="muted">— {{ item.venue.name if item.venue else '?' }} · {{ fmt(item.change.detected_at) }}</span>
+      {% if item.change.field_changes %}
+      <br><span class="muted">
+        {% for field, vals in item.change.field_changes.items() %}
+          {{ field }}: {{ vals[0] if vals[0] is not none else '—' }} → {{ vals[1] if vals[1] is not none else '—' }}{{ "; " if not loop.last }}
+        {% endfor %}
+      </span>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="muted">No changes detected in the last week.</p>{% endif %}
+</section>
+
+{% endblock %}
