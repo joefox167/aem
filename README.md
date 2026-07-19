@@ -43,7 +43,7 @@ Environment (secrets / deployment):
 | `AEM_NTFY_URL` | Full ntfy topic URL for alerts |
 | `AEM_NTFY_OPS_URL` | ntfy topic for operational warnings (collector failures) |
 | `AEM_GMAIL_USER` / `AEM_GMAIL_APP_PASSWORD` | Gmail SMTP credentials for the digest |
-| `AEM_DIGEST_TO` | Digest recipient address |
+| `AEM_DIGEST_TO` | Digest recipient address or comma-separated recipient list |
 | `AEM_BASE_URL` | Public base URL used in notification links |
 | `AEM_SCHEDULER_ENABLED` | Set `false` to disable in-process scheduling |
 

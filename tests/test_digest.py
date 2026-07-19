@@ -5,6 +5,7 @@ from sqlalchemy import select
 from aem.config import AppConfig, Settings
 from aem.models import ChangeLog, Event, Venue
 from aem.notify import digest
+from aem.notify import email as email_sender
 
 
 def _seed(session_factory):
@@ -68,3 +69,12 @@ def test_send_digest_stamps_and_dedupes(session_factory):
                                     ChangeLog.change_type != "baseline")
         ).all()
         assert undigested == []
+
+
+def test_email_parses_multiple_recipients():
+    assert email_sender._parse_recipients("a@example.com, b@example.com") == [
+        "a@example.com", "b@example.com"
+    ]
+    assert email_sender._parse_recipients("Alice <a@example.com>; Bob <b@example.com>") == [
+        "a@example.com", "b@example.com"
+    ]
