@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
+from . import metrics
 from .config import AppConfig, Settings
 from .core import ingest
 from .notify import digest, dispatch
@@ -38,17 +39,24 @@ def backup_db(db_path: str) -> None:
     if not src.exists():
         return
     backups = src.parent / "backups"
-    backups.mkdir(exist_ok=True)
-    target = backups / f"aem-{datetime.now():%Y%m%d}.db"
-    conn = sqlite3.connect(db_path)
     try:
-        conn.execute("VACUUM INTO ?", (str(target),))
-    finally:
-        conn.close()
-    old = sorted(backups.glob("aem-*.db"))[:-BACKUP_KEEP]
-    for f in old:
-        f.unlink()
-    log.info("db backup written: %s", target)
+        backups.mkdir(exist_ok=True)
+        target = backups / f"aem-{datetime.now():%Y%m%d}.db"
+        conn = sqlite3.connect(db_path)
+        try:
+            conn.execute("VACUUM INTO ?", (str(target),))
+        finally:
+            conn.close()
+        old = sorted(backups.glob("aem-*.db"))[:-BACKUP_KEEP]
+        for f in old:
+            f.unlink()
+        metrics.DB_BACKUP_RUNS.labels(status="success").inc()
+        metrics.DB_BACKUP_LAST_SUCCESS.set_to_current_time()
+        log.info("db backup written: %s", target)
+    except Exception:
+        metrics.DB_BACKUP_RUNS.labels(status="failure").inc()
+        log.exception("db backup failed")
+        raise
 
 
 def build_scheduler(session_factory, collectors, settings: Settings,

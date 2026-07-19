@@ -21,3 +21,15 @@ NOTIFICATIONS = Counter(
 PARSE_DRIFT = Counter(
     "aem_parse_drift_total", "Polls where a 200 response parsed to zero events", ["collector"]
 )
+DIGEST_RUNS = Counter(
+    "aem_digest_runs_total", "Digest send attempts", ["status"]
+)
+DIGEST_LAST_SENT = Gauge(
+    "aem_digest_last_sent_timestamp", "Unix time of last successfully sent digest email"
+)
+DB_BACKUP_RUNS = Counter(
+    "aem_db_backup_runs_total", "Database backup runs", ["status"]
+)
+DB_BACKUP_LAST_SUCCESS = Gauge(
+    "aem_db_backup_last_success_timestamp", "Unix time of last successful database backup"
+)

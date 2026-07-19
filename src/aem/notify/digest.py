@@ -95,10 +95,12 @@ def send_digest(session: Session, settings: Settings, cfg: AppConfig,
         select(NotificationSent).where(NotificationSent.dedupe_key == dedupe_key)
     )
     if already is not None and not force:
+        metrics.DIGEST_RUNS.labels(status="skipped").inc()
         return {"sent": False, "reason": "already sent today"}
 
     data = build_digest(session, cfg)
     if data["total"] == 0 and not force:
+        metrics.DIGEST_RUNS.labels(status="skipped").inc()
         return {"sent": False, "reason": "no changes to digest"}
 
     html = render_digest(data, settings, date_label)
@@ -116,5 +118,8 @@ def send_digest(session: Session, settings: Settings, cfg: AppConfig,
             session.add(NotificationSent(dedupe_key=dedupe_key, channel="email"))
         session.commit()
         metrics.NOTIFICATIONS.labels(channel="email").inc()
+        metrics.DIGEST_RUNS.labels(status="sent").inc()
+        metrics.DIGEST_LAST_SENT.set_to_current_time()
         return {"sent": True, "changes": data["total"]}
+    metrics.DIGEST_RUNS.labels(status="failure").inc()
     return {"sent": False, "reason": "smtp send failed"}
