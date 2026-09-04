@@ -101,6 +101,7 @@ Single-replica Deployment on the homelab Kubernetes cluster with SQLite on a PVC
 builds `ghcr.io/joefox167/aem:sha-<short>` on every push to `main`; the chart lives in
 the [k8_cluster](https://github.com/joefox167/k8_cluster) repo at `fleet/web-aem/chart`.
 
-**Deploys are manual `helm upgrade`, not GitOps** — despite the `fleet/` path, Fleet is
-not installed on the cluster, so pushing the k8s repo deploys nothing. See
+**Deploys are GitOps via Rancher Fleet.** Pin `image.tag` in the chart's `values.yaml`,
+push the k8s repo, and the Fleet agent upgrades the release. Do not run `helm upgrade`
+by hand — it races Fleet's reconcile and the drift is reverted anyway. See
 [docs/operations.md](docs/operations.md).

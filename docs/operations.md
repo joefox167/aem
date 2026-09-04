@@ -12,28 +12,38 @@ cluster, SQLite on a PVC, reachable at `https://aem.home.arpa`.
 
 ## Deploying
 
-**Deploys are manual.** The chart lives under a `fleet/` path, but Fleet is not
-installed on this cluster — there are no `gitrepo` or `bundle` CRDs, only a leftover
-agent release. Pushing the k8s repo deploys nothing. Ship with Helm:
+**Deploys are GitOps.** This cluster runs a Fleet agent registered to the upstream
+Rancher at `rancher.home.arpa`; the `web-aem` bundle is defined by
+`fleet/web-aem/fleet.yaml` in the k8s repo. Pushing to `main` is the deploy.
 
 ```bash
 # 1. push app changes; CI publishes ghcr.io/joefox167/aem:sha-<short>
-# 2. pin the tag
+# 2. pin the tag in the k8s repo and push -- that is the whole deploy
 $EDITOR fleet/web-aem/chart/values.yaml     # image.tag: sha-<short>
-# 3. deploy
-cd fleet/web-aem && helm upgrade web-aem ./chart -n web --wait --timeout 5m
+git commit -am 'chore(web-aem): promote sha-<short>' && git push
 ```
 
-> **Never `helm upgrade --dry-run` without `=server`.** The secret template renders the
-> live secret via `lookup`, and `lookup` returns empty on a client-side dry run — so the
-> template falls through to the SOPS *ciphertext*, and applying that would replace your
-> working credentials with encrypted strings. Use `--dry-run=server`.
+Fleet picks up the commit and upgrades the Helm release itself.
 
-Rollback:
+> **Do not run `helm upgrade` by hand against a bundle Fleet owns.** Fleet reconciles
+> continuously, so a manual upgrade races its own operation — expect
+> `another operation (install/upgrade/rollback) is in progress` and
+> `secrets "sh.helm.release.v1.web-aem.vN" not found` — and any drift you introduce is
+> reverted at the next reconcile. Change git, not the cluster.
+
+`paused: true` in `fleet.yaml` stops Fleet reconciling the bundle; that is the escape
+hatch if you ever do need to drive Helm manually.
+
+### Watching a deploy
+
+The `GitRepo` and `Bundle` resources live on the **upstream Rancher**, not on this
+cluster, so `kubectl get gitrepo` here legitimately returns "no such resource" — that is
+not evidence Fleet is missing. Watch the agent instead:
 
 ```bash
-helm history web-aem -n web
-helm rollback web-aem <revision> -n web
+kubectl -n cattle-fleet-system logs deploy/fleet-agent -f | grep web-aem
+kubectl -n web get deploy aem -o wide          # ground truth for what is running
+helm history web-aem -n web                    # Fleet's own upgrades appear here
 ```
 
 ## Secrets
@@ -139,10 +149,10 @@ exceeded Discovery's 1000-result paging cap and got cut off — lower `window_da
 digest is skipped unless forced. `sent: true` means SMTP accepted the message, which is
 not the same as inbox delivery.
 
-**`UPGRADE FAILED: secrets "sh.helm.release.v1.web-aem.vN" not found`.** A release
-bookkeeping secret went missing. Check `helm history web-aem -n web` — the upgrade may
-have succeeded anyway, and `kubectl -n web get deploy aem -o wide` is the ground truth
-for what is actually running.
+**`UPGRADE FAILED: secrets "sh.helm.release.v1.web-aem.vN" not found`.** Almost always
+a manual `helm upgrade` racing Fleet's reconcile of the same release. Stop driving Helm
+by hand and let Fleet finish; `helm history web-aem -n web` and
+`kubectl -n web get deploy aem -o wide` show where it actually landed.
 
 ## Local development
 
