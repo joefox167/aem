@@ -22,6 +22,26 @@ AEM_DB_PATH=./data/aem.db AEM_CONFIG_FILE=./config/config.example.yaml \
 
 Or `docker compose up --build`.
 
+## Before pushing
+
+`scripts/check.sh` runs exactly what CI runs -- `ruff check src tests` and
+`pytest -q` -- against the tool versions pinned in `pyproject.toml`. It refuses
+to run if the venv has drifted from the pinned ruff, because a local check that
+uses a different linter version is not a check at all.
+
+Install it as a pre-push hook once per clone:
+
+```bash
+cp scripts/hooks/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push
+```
+
+A push that CI would reject is then blocked locally. Bypass with
+`git push --no-verify` when you mean to.
+
+Ruff is pinned exactly (`ruff==x.y.z`). A ruff minor release can promote new
+rules to its default set and redden CI with no code change; the pin means that
+happens when you choose to bump it, not when upstream ships it.
+
 ## Key endpoints
 
 - `/` — dashboard (New Today, Recent Changes, Upcoming)

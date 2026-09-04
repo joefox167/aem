@@ -27,7 +27,10 @@ dev = [
     "pytest>=8",
     "pytest-asyncio>=0.23",
     "respx>=0.21",
-    "ruff>=0.5",
+    # exact pin: CI installs this same version, and scripts/check.sh refuses to
+    # run if the local venv drifts from it -- so a clean local check means a
+    # clean CI run. Bump deliberately, then re-run scripts/check.sh.
+    "ruff==0.16.6",
 ]
 
 [tool.setuptools.packages.find]
