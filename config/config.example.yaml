@@ -16,6 +16,12 @@ collectors:
     enabled: true
   bullock_imax:
     enabled: true
+  # Austin Theatre Alliance WordPress REST API (Paramount + Stateside).
+  # No key needed; three requests per poll.
+  paramount:
+    enabled: true
+    options:
+      max_pages: 5
   # Ticketmaster Discovery API — every TM/Live Nation/Front Gate room in the
   # Austin DMA. Needs AEM_TICKETMASTER_API_KEY; skipped at startup without it.
   ticketmaster:

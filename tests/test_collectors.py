@@ -1,6 +1,6 @@
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 import respx
@@ -9,6 +9,8 @@ from httpx import Response
 from aem.collectors.acl_live import RSS_URL, AclLiveCollector
 from aem.collectors.base import FetchContext, ParseDriftError
 from aem.collectors.bullock_imax import FILMS_URL, STORE_URL, BullockImaxCollector
+from aem.collectors.paramount import BASE_URL as PARAMOUNT_URL
+from aem.collectors.paramount import ParamountCollector, _map_event
 from aem.collectors.ticketmaster import AUSTIN_GEOHASH, TicketmasterCollector
 from aem.collectors.ticketmaster import BASE_URL as TM_URL
 from aem.config import Settings
@@ -226,3 +228,131 @@ def test_ticketmaster_is_skipped_without_an_api_key(cfg):
 
     with_key = build_collectors(cfg, Settings(ticketmaster_api_key="k"))
     assert TicketmasterCollector.id in {c.id for c in with_key}
+
+
+PARAMOUNT_NOW = datetime(2026, 9, 4, 12, 0)  # fixture has events either side of this
+
+
+@pytest.fixture
+def paramount_now(monkeypatch):
+    """Freeze the collector's clock so past-event filtering is deterministic."""
+    monkeypatch.setattr("aem.collectors.paramount.utcnow", lambda: PARAMOUNT_NOW)
+    return PARAMOUNT_NOW
+
+
+def _paramount_route(total_pages="1"):
+    return respx.get(url__startswith=PARAMOUNT_URL).mock(
+        return_value=Response(200, text=fixture_text("paramount_events.json"),
+                              headers={"x-wp-totalpages": total_pages,
+                                       "content-type": "application/json"}))
+
+
+@respx.mock
+async def test_paramount_maps_wordpress_events(ctx, paramount_now):
+    route = _paramount_route()
+
+    events = await ParamountCollector().fetch(ctx)
+
+    assert route.call_count == 1
+    assert route.calls[0].request.url.params["per_page"] == "100"
+    by_key = {e.source_key: e for e in events}
+
+    film = by_key["21612"]
+    assert film.title == "Project Hail Mary"
+    assert film.kind == EventKind.movie
+    assert film.venue_slug == "paramount-theatre"
+    # 2026-10-12 19:00 America/Chicago (CDT, UTC-5) -> 2026-10-13 00:00 UTC
+    assert film.starts_at == datetime(2026, 10, 13, 0, 0)
+    assert film.ends_at is None
+    assert film.ticket_status == TicketStatus.on_sale
+    assert film.ticket_url == "https://tickets.austintheatre.org/14166"
+    assert film.event_url == "https://www.austintheatre.org/event/project-hail-mary/"
+
+    # a two-night run spans first performance to last
+    run = by_key["21474"]
+    assert run.title == "Steel Magnolias"
+    assert run.starts_at == datetime(2026, 9, 10, 0, 30)
+    assert run.ends_at == datetime(2026, 9, 11, 0, 30)
+    assert len(run.attrs["performances"]) == 2
+
+    assert by_key["21338"].kind == EventKind.comedy
+    assert by_key["21586"].kind == EventKind.live_performance
+    # titles arrive HTML-escaped; dedupe against other sources depends on unescaping
+    assert by_key["20521"].title.startswith("Tommy Castro & The Painkillers")
+
+
+@respx.mock
+async def test_paramount_drops_past_events(ctx, paramount_now):
+    _paramount_route()
+
+    events = await ParamountCollector().fetch(ctx)
+    keys = {e.source_key for e in events}
+
+    # the fixture holds six events whose last performance is already over
+    assert "21193" not in keys   # Pee Wee's Big Adventure, 2026-08-12
+    assert "20135" not in keys   # Jaws, 2026-06-16
+    assert "21209" not in keys   # Speed Racer, 2026-08-31
+    assert all(e.starts_at >= PARAMOUNT_NOW - timedelta(hours=30) for e in events)
+
+
+@respx.mock
+async def test_paramount_reads_status_format_and_venue_from_tags(ctx, paramount_now):
+    _paramount_route()
+    events = {e.source_key: e for e in await ParamountCollector().fetch(ctx)}
+
+    # an off-site presentation is mapped onto the venue slug AEM already uses
+    scream = events["21153"]
+    assert scream.venue_slug == "bass-concert-hall"
+    assert scream.venue_name == "Bass Concert Hall"
+
+    # unrecognized tags are kept rather than dropped
+    assert "Second Show Added" in events["21338"].attrs["notes"]
+
+
+def test_paramount_tag_vocabulary_is_split_by_meaning():
+    """Sale state, film format and marketing copy share one flat tag list."""
+    fixture = json.loads(fixture_text("paramount_events.json"))
+    by_id = {str(i["id"]): i for i in fixture}
+
+    sold_out = _map_event(by_id["20135"], datetime(2026, 6, 1))   # Jaws, before it ran
+    assert sold_out.ticket_status == TicketStatus.sold_out
+
+    imax = _map_event(by_id["21209"], datetime(2026, 8, 1))       # Speed Racer
+    assert imax.ticket_status == TicketStatus.on_sale
+    assert imax.attrs["format"] == "IMAX"
+
+    film_35mm = _map_event(by_id["19845"], datetime(2026, 6, 1))  # Creed, tagged 35mm only
+    assert film_35mm.attrs["format"] == "35mm"
+    assert film_35mm.ticket_status == TicketStatus.unknown
+
+    untagged = _map_event(by_id["21193"], datetime(2026, 8, 1))   # Pee Wee, no tags
+    assert untagged.ticket_status == TicketStatus.unknown
+
+
+@respx.mock
+async def test_paramount_follows_paging_headers(ctx, paramount_now):
+    route = _paramount_route(total_pages="3")
+
+    await ParamountCollector().fetch(ctx)
+
+    assert route.call_count == 3
+    assert [c.request.url.params["page"] for c in route.calls] == ["1", "2", "3"]
+
+
+@respx.mock
+async def test_paramount_caps_runaway_paging(ctx, paramount_now):
+    route = _paramount_route(total_pages="500")
+
+    await ParamountCollector({"max_pages": 2}).fetch(ctx)
+
+    # a source-side change cannot turn one poll into hundreds of requests
+    assert route.call_count == 2
+
+
+@respx.mock
+async def test_paramount_empty_api_is_drift(ctx, paramount_now):
+    respx.get(url__startswith=PARAMOUNT_URL).mock(
+        return_value=Response(200, json=[], headers={"x-wp-totalpages": "1"}))
+
+    with pytest.raises(ParseDriftError):
+        await ParamountCollector().fetch(ctx)
