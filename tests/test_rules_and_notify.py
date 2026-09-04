@@ -122,3 +122,17 @@ def _seed_onsale(session_factory):
                         field_changes={"ticket_status": ["presale", "on_sale"]},
                         detected_at=utcnow()))
         s.commit()
+
+
+def test_platform_source_adds_are_digested_not_alerted(session_factory):
+    """A DMA-wide source announces far too much to page on every add."""
+    cfg = AppConfig()
+    event_id, _ = _seed(session_factory)
+    with session_factory() as s:
+        event = s.get(Event, event_id)
+        event.source = "ticketmaster"
+        change = s.scalar(select(ChangeLog))
+        assert evaluate(change, event, "moody-amphitheater", cfg) == ("digest", False)
+        # ...unless it happens at a venue the user cares about
+        cfg.favorite_venues = ["moody-amphitheater"]
+        assert evaluate(change, event, "moody-amphitheater", cfg)[0] == "immediate"

@@ -27,6 +27,7 @@ def evaluate(change: ChangeLog, event: Event, venue_slug: str, cfg: AppConfig) -
     for rule in cfg.rules:
         m = rule.match
         if (_matches(change.change_type, m.change_type)
+                and _matches(event.source, m.source)
                 and _matches(event.kind, m.kind)
                 and _matches(fmt, m.format)
                 and _matches(status_to, m.ticket_status_to)

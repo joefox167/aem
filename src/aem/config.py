@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import yaml
 from pydantic import BaseModel, Field
@@ -19,6 +20,7 @@ class Settings(BaseSettings):
     gmail_user: str = ""
     gmail_app_password: str = ""
     digest_to: str = ""
+    ticketmaster_api_key: str = ""
     base_url: str = "https://aem.home.arpa"
     scheduler_enabled: bool = True
 
@@ -30,10 +32,13 @@ class QuietHours(BaseModel):
 
 class CollectorConfig(BaseModel):
     enabled: bool = True
+    # collector-specific knobs, passed to the collector constructor
+    options: dict[str, Any] = Field(default_factory=dict)
 
 
 class RuleMatch(BaseModel):
     change_type: str | list[str] | None = None
+    source: str | list[str] | None = None
     kind: str | list[str] | None = None
     format: str | list[str] | None = None
     ticket_status_to: str | list[str] | None = None
@@ -49,6 +54,10 @@ class Rule(BaseModel):
 DEFAULT_RULES = [
     Rule(match=RuleMatch(change_type="ticket_status", ticket_status_to=["on_sale", "presale"]),
          action="immediate", always=True),
+    # platform-wide sources announce far more per hour than a single venue does;
+    # their adds go to the digest, while favorite venues are still promoted to
+    # immediate by the rules engine
+    Rule(match=RuleMatch(change_type="added", source="ticketmaster"), action="digest"),
     Rule(match=RuleMatch(change_type="added"), action="immediate"),
     Rule(match=RuleMatch(change_type=["updated", "removed", "ticket_status"]), action="digest"),
 ]

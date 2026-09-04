@@ -14,7 +14,8 @@ from datetime import datetime
 from ..collectors.base import RawEvent
 from ..models import Event, TicketStatus
 
-MEANINGFUL_ATTRS = ("openers", "format", "tour", "series", "special_presentation", "theater")
+MEANINGFUL_ATTRS = ("openers", "format", "tour", "series", "special_presentation", "theater",
+                    "performers", "status_note")
 
 
 def resolve(raw: RawEvent, existing: Event | None) -> dict:

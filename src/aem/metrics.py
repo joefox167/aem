@@ -33,3 +33,10 @@ DB_BACKUP_RUNS = Counter(
 DB_BACKUP_LAST_SUCCESS = Gauge(
     "aem_db_backup_last_success_timestamp", "Unix time of last successful database backup"
 )
+TM_API_CALLS = Counter(
+    "aem_tm_api_calls_total", "Ticketmaster Discovery API calls", ["status"]
+)
+TM_WINDOW_TRUNCATED = Counter(
+    "aem_tm_window_truncated_total",
+    "Ticketmaster queries that hit the 1000-result deep-paging cap", ["segment"]
+)

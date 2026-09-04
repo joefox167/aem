@@ -36,6 +36,9 @@ class RawEvent:
     kind: EventKind
     title: str
     venue_slug: str
+    # display name for venues discovered at poll time (platform collectors that
+    # cannot declare their rooms up front); ignored for pre-declared venues
+    venue_name: str | None = None
     starts_at: datetime | None = None
     ends_at: datetime | None = None
     event_url: str | None = None
@@ -104,6 +107,9 @@ class FetchContext:
 class Collector(ABC):
     id: str = ""
     venues: list[VenueInfo] = []
+
+    def __init__(self, options: dict | None = None):
+        self.options = options or {}
 
     @abstractmethod
     async def fetch(self, ctx: FetchContext) -> list[RawEvent]:

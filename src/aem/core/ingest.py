@@ -79,9 +79,12 @@ def _upsert_batch(session: Session, collector: Collector, batch: list[RawEvent],
         if venue is None:
             venue = session.scalar(select(Venue).where(Venue.slug == raw.venue_slug))
             if venue is None:
-                venue = Venue(source=collector.id, name=raw.venue_slug, slug=raw.venue_slug)
+                venue = Venue(source=collector.id, name=raw.venue_name or raw.venue_slug,
+                              slug=raw.venue_slug)
                 session.add(venue)
                 session.flush()
+            elif raw.venue_name and venue.name == venue.slug:
+                venue.name = raw.venue_name  # backfill a real name onto a slug-named venue
         existing = session.scalar(
             select(Event).where(Event.source == collector.id, Event.source_key == raw.source_key)
         )

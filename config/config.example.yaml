@@ -16,6 +16,24 @@ collectors:
     enabled: true
   bullock_imax:
     enabled: true
+  # Ticketmaster Discovery API — every TM/Live Nation/Front Gate room in the
+  # Austin DMA. Needs AEM_TICKETMASTER_API_KEY; skipped at startup without it.
+  ticketmaster:
+    enabled: true
+    options:
+      # geo search, not dma_id: Discovery's Austin DMA (222) also covers San
+      # Antonio. Defaults to 40 miles around downtown Austin.
+      radius: 40
+      segments: [Music, "Arts & Theatre", Film]
+      horizon_days: 180
+      window_days: 60                          # shrink if aem_tm_window_truncated_total rises
+      max_pages: 5
+      venue_allowlist: []                      # empty = every venue in range
+      # rooms with a dedicated collector that already reads richer detail
+      # (tour, openers, AXS status) — no point tracking them twice
+      venue_denylist: [moody-theater, acl-3ten, bullock-imax]
+      exclude_genres: []                       # e.g. [Wrestling, "Motor Sports"]
+      exclude_cities: []                       # guard if you swap back to dma_id
 
 # Ordered notification rules; first match wins. Fields in `match` are AND-ed,
 # list values are OR-ed. `always: true` bypasses quiet hours.
@@ -24,6 +42,10 @@ rules:
   - match: {change_type: ticket_status, ticket_status_to: [on_sale, presale]}
     action: immediate
     always: true
+  # a DMA-wide source announces far more per hour than one venue: digest its
+  # adds, and let favorite_venues promote the ones that matter to immediate
+  - match: {change_type: added, source: ticketmaster}
+    action: digest
   - match: {change_type: added}
     action: immediate
   - match: {change_type: [updated, removed, ticket_status]}

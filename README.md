@@ -44,6 +44,7 @@ Environment (secrets / deployment):
 | `AEM_NTFY_OPS_URL` | ntfy topic for operational warnings (collector failures) |
 | `AEM_GMAIL_USER` / `AEM_GMAIL_APP_PASSWORD` | Gmail SMTP credentials for the digest |
 | `AEM_DIGEST_TO` | Digest recipient address or comma-separated recipient list |
+| `AEM_TICKETMASTER_API_KEY` | Discovery API key (https://developer.ticketmaster.com); the `ticketmaster` collector is skipped without it |
 | `AEM_BASE_URL` | Public base URL used in notification links |
 | `AEM_SCHEDULER_ENABLED` | Set `false` to disable in-process scheduling |
 
