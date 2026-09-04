@@ -1,19 +1,21 @@
 """Diff-engine behavior through real ingest polls with a fake collector."""
 
 from datetime import datetime, timedelta
+from typing import ClassVar
 
 from sqlalchemy import select
 
 from aem.collectors.base import Collector, RawEvent, VenueInfo
 from aem.core.ingest import poll_collectors
-from aem.models import ChangeLog, Event, TicketStatus, EventKind, utcnow
+from aem.models import ChangeLog, Event, EventKind, TicketStatus, utcnow
 
 
 class FakeCollector(Collector):
     id = "fake"
-    venues = [VenueInfo("fake-venue", "Fake Venue")]
+    venues: ClassVar[list[VenueInfo]] = [VenueInfo("fake-venue", "Fake Venue")]
 
     def __init__(self):
+        super().__init__()
         self.batch: list[RawEvent] = []
         self.error: Exception | None = None
 
@@ -27,11 +29,11 @@ FIXED_START = datetime(2027, 1, 15, 20, 0)
 
 
 def make_event(key="k1", title="The Thing", status=TicketStatus.coming_soon, **kw):
-    defaults = dict(
-        source_key=key, kind=EventKind.concert, title=title, venue_slug="fake-venue",
-        starts_at=FIXED_START, ticket_status=status,
-        ticket_url="https://tix.example/1",
-    )
+    defaults = {
+        "source_key": key, "kind": EventKind.concert, "title": title,
+        "venue_slug": "fake-venue", "starts_at": FIXED_START, "ticket_status": status,
+        "ticket_url": "https://tix.example/1",
+    }
     defaults.update(kw)
     return RawEvent(**defaults)
 

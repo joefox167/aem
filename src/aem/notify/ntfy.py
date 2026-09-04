@@ -25,6 +25,6 @@ def send(url: str, title: str, message: str, click: str | None = None,
         resp = httpx.post(url, content=message.encode("utf-8"), headers=headers, timeout=15)
         resp.raise_for_status()
         return True
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 -- a failed send is reported, never raised
         log.error("ntfy send failed: %s", exc)
         return False

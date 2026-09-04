@@ -7,11 +7,10 @@ import respx
 from httpx import Response
 
 from aem.collectors.acl_live import RSS_URL, AclLiveCollector
-from aem.collectors.bullock_imax import FILMS_URL, STORE_URL, BullockImaxCollector
 from aem.collectors.base import FetchContext, ParseDriftError
-from aem.collectors.ticketmaster import AUSTIN_GEOHASH
+from aem.collectors.bullock_imax import FILMS_URL, STORE_URL, BullockImaxCollector
+from aem.collectors.ticketmaster import AUSTIN_GEOHASH, TicketmasterCollector
 from aem.collectors.ticketmaster import BASE_URL as TM_URL
-from aem.collectors.ticketmaster import TicketmasterCollector
 from aem.config import Settings
 from aem.main import build_collectors
 from aem.metrics import TM_WINDOW_TRUNCATED

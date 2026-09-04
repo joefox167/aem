@@ -17,7 +17,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+from typing import ClassVar
 from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 
@@ -25,7 +26,7 @@ import httpx
 
 from .. import metrics
 from ..models import EventKind, TicketStatus, utcnow
-from .base import Collector, FetchContext, ParseDriftError, RawEvent
+from .base import Collector, FetchContext, ParseDriftError, RawEvent, VenueInfo
 
 log = logging.getLogger(__name__)
 
@@ -75,12 +76,12 @@ def _parse_dt(value: str | None) -> datetime | None:
     if not value:
         return None
     try:
-        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        dt = datetime.fromisoformat(value)
     except ValueError:
         return None
     if dt.tzinfo is None:
         return dt
-    return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt.astimezone(UTC).replace(tzinfo=None)
 
 
 def _local_start(dates: dict) -> datetime | None:
@@ -94,7 +95,7 @@ def _local_start(dates: dict) -> datetime | None:
         tz = ZoneInfo(dates.get("timezone") or "America/Chicago")
     except (ValueError, KeyError):
         return None
-    return naive.replace(tzinfo=tz).astimezone(timezone.utc).replace(tzinfo=None)
+    return naive.replace(tzinfo=tz).astimezone(UTC).replace(tzinfo=None)
 
 
 def _classify(segment: str, genre: str, subgenre: str) -> EventKind:
@@ -222,7 +223,7 @@ class TicketmasterCollector(Collector):
     id = "ticketmaster"
     # venues are discovered per poll (whatever the DMA is selling), so none are
     # declared up front; ingest creates them from RawEvent.venue_name
-    venues = []
+    venues: ClassVar[list[VenueInfo]] = []
 
     def __init__(self, options: dict | None = None):
         super().__init__(options)

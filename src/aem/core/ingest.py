@@ -223,7 +223,7 @@ async def poll_collectors(session_factory: sessionmaker, collectors: list[Collec
                 results[collector.id] = stats
                 log.info("poll %s ok in %.1fs: %s", collector.id,
                          time.monotonic() - started, stats)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 -- collector isolation, see module docstring
                 session.rollback()
                 run.status = "error"
                 run.finished_at = utcnow()

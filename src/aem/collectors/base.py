@@ -5,6 +5,7 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import ClassVar
 from urllib.parse import urlsplit
 
 import httpx
@@ -106,7 +107,7 @@ class FetchContext:
 
 class Collector(ABC):
     id: str = ""
-    venues: list[VenueInfo] = []
+    venues: ClassVar[list[VenueInfo]] = []
 
     def __init__(self, options: dict | None = None):
         self.options = options or {}

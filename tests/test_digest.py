@@ -85,13 +85,15 @@ def test_send_digest_records_sent_metrics(session_factory):
     cfg = AppConfig()
     settings = Settings(gmail_user="u@example.com", gmail_app_password="pw",
                         digest_to="me@example.com")
-    with patch("aem.notify.email.send_html", return_value=True):
-        with patch("aem.notify.digest.metrics.DIGEST_RUNS") as mock_runs:
-            with patch("aem.notify.digest.metrics.DIGEST_LAST_SENT") as mock_last_sent:
-                sent_metric = Mock()
-                mock_runs.labels.return_value = sent_metric
-                with session_factory() as s:
-                    result = digest.send_digest(s, settings, cfg, force=True)
+    with (
+        patch("aem.notify.email.send_html", return_value=True),
+        patch("aem.notify.digest.metrics.DIGEST_RUNS") as mock_runs,
+        patch("aem.notify.digest.metrics.DIGEST_LAST_SENT") as mock_last_sent,
+    ):
+        sent_metric = Mock()
+        mock_runs.labels.return_value = sent_metric
+        with session_factory() as s:
+            result = digest.send_digest(s, settings, cfg, force=True)
     assert result == {"sent": True, "changes": 3}
     mock_runs.labels.assert_called_once_with(status="sent")
     sent_metric.inc.assert_called_once()
@@ -103,12 +105,14 @@ def test_send_digest_records_failure_metrics(session_factory):
     cfg = AppConfig()
     settings = Settings(gmail_user="u@example.com", gmail_app_password="pw",
                         digest_to="me@example.com")
-    with patch("aem.notify.email.send_html", return_value=False):
-        with patch("aem.notify.digest.metrics.DIGEST_RUNS") as mock_runs:
-            failure_metric = Mock()
-            mock_runs.labels.return_value = failure_metric
-            with session_factory() as s:
-                result = digest.send_digest(s, settings, cfg, force=True)
+    with (
+        patch("aem.notify.email.send_html", return_value=False),
+        patch("aem.notify.digest.metrics.DIGEST_RUNS") as mock_runs,
+    ):
+        failure_metric = Mock()
+        mock_runs.labels.return_value = failure_metric
+        with session_factory() as s:
+            result = digest.send_digest(s, settings, cfg, force=True)
     assert result == {"sent": False, "reason": "smtp send failed"}
     mock_runs.labels.assert_called_once_with(status="failure")
     failure_metric.inc.assert_called_once()

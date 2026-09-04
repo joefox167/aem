@@ -3,7 +3,7 @@ from unittest.mock import patch
 from sqlalchemy import select
 
 from aem.config import AppConfig, Settings
-from aem.models import (ChangeLog, Event, NotificationSent, Venue, utcnow)
+from aem.models import ChangeLog, Event, NotificationSent, Venue, utcnow
 from aem.notify import dispatch
 from aem.notify.rules import evaluate
 
@@ -83,9 +83,8 @@ def test_baseline_changes_never_notify(session_factory):
     cfg = AppConfig()
     settings = Settings(ntfy_url="https://ntfy.example/topic")
     _seed(session_factory, change_type="baseline")
-    with patch("aem.notify.ntfy.send", return_value=True) as mock_send:
-        with session_factory() as s:
-            sent = dispatch.process_pending(s, settings, cfg)
+    with patch("aem.notify.ntfy.send", return_value=True) as mock_send, session_factory() as s:
+        sent = dispatch.process_pending(s, settings, cfg)
     assert sent == 0
     assert mock_send.call_count == 0
 
@@ -98,9 +97,8 @@ def test_quiet_hours_hold_normal_but_not_onsale(session_factory):
     _seed(session_factory)  # 'added' -> immediate but not 'always'
     _seed_onsale(session_factory)
 
-    with patch("aem.notify.ntfy.send", return_value=True) as mock_send:
-        with session_factory() as s:
-            sent = dispatch.process_pending(s, settings, cfg)
+    with patch("aem.notify.ntfy.send", return_value=True) as mock_send, session_factory() as s:
+        sent = dispatch.process_pending(s, settings, cfg)
     assert sent == 1  # only the on_sale change went out
     assert mock_send.call_count == 1
 

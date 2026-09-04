@@ -41,7 +41,8 @@ def backup_db(db_path: str) -> None:
     backups = src.parent / "backups"
     try:
         backups.mkdir(exist_ok=True)
-        target = backups / f"aem-{datetime.now():%Y%m%d}.db"
+        # local date is intentional: backups are named for the operator's day
+        target = backups / f"aem-{datetime.now():%Y%m%d}.db"  # noqa: DTZ005
         conn = sqlite3.connect(db_path)
         try:
             conn.execute("VACUUM INTO ?", (str(target),))

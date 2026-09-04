@@ -10,11 +10,13 @@ def test_backup_db_writes_backup_and_updates_metrics(tmp_path):
     init_db(engine)
     engine.dispose()
 
-    with patch("aem.scheduler.metrics.DB_BACKUP_RUNS") as mock_runs:
-        with patch("aem.scheduler.metrics.DB_BACKUP_LAST_SUCCESS") as mock_last_success:
-            success_metric = Mock()
-            mock_runs.labels.return_value = success_metric
-            backup_db(str(db_path))
+    with (
+        patch("aem.scheduler.metrics.DB_BACKUP_RUNS") as mock_runs,
+        patch("aem.scheduler.metrics.DB_BACKUP_LAST_SUCCESS") as mock_last_success,
+    ):
+        success_metric = Mock()
+        mock_runs.labels.return_value = success_metric
+        backup_db(str(db_path))
 
     backups = list((tmp_path / "backups").glob("aem-*.db"))
     assert len(backups) == 1

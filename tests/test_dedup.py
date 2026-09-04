@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 from aem.core.dedup import normalize_title
 
 
@@ -20,7 +22,7 @@ async def test_same_movie_across_sources_links_once(session_factory, cfg):
 
     class SourceA(Collector):
         id = "source_a"
-        venues = [VenueInfo("venue-a", "Venue A")]
+        venues: ClassVar[list[VenueInfo]] = [VenueInfo("venue-a", "Venue A")]
 
         async def fetch(self, ctx):
             return [RawEvent(source_key="a1", kind=EventKind.movie,
@@ -29,7 +31,7 @@ async def test_same_movie_across_sources_links_once(session_factory, cfg):
 
     class SourceB(Collector):
         id = "source_b"
-        venues = [VenueInfo("venue-b", "Venue B")]
+        venues: ClassVar[list[VenueInfo]] = [VenueInfo("venue-b", "Venue B")]
 
         async def fetch(self, ctx):
             return [RawEvent(source_key="b1", kind=EventKind.movie,

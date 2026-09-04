@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 import re
 from datetime import datetime
+from typing import ClassVar
 
 from selectolax.parser import HTMLParser
 
@@ -29,9 +30,9 @@ FILMS_URL = "https://www.thestoryoftexas.com/visit/imax-and-films/"
 STORE_URL = "https://tickets.thestoryoftexas.com/mainstore"
 
 FILM_CATEGORY_RE = re.compile(
-    r"^(IMAX(?:\s+DOC)?|TEXAS SPIRIT THEATER)\s*\|\s*(.+)$", re.I
+    r"^(IMAX(?:\s+DOC)?|TEXAS SPIRIT THEATER)\s*\|\s*(.+)$", re.IGNORECASE
 )
-MEMBER_SCREENING_RE = re.compile(r"^Member\s+IMAX\s+Screening:\s*(.+)$", re.I)
+MEMBER_SCREENING_RE = re.compile(r"^Member\s+IMAX\s+Screening:\s*(.+)$", re.IGNORECASE)
 
 MONTHS = {m: i for i, m in enumerate(
     ["january", "february", "march", "april", "may", "june", "july",
@@ -53,7 +54,8 @@ def _parse_date_range(text: str) -> tuple[datetime | None, datetime | None]:
         if not month:
             return None
         try:
-            return datetime(int(year or fallback_year), month, int(day))
+            # naive UTC to match the storage convention
+            return datetime(int(year or fallback_year), month, int(day))  # noqa: DTZ001
         except ValueError:
             return None
 
@@ -122,7 +124,7 @@ def _parse_films_page(html: str) -> list[dict]:
 
 class BullockImaxCollector(Collector):
     id = "bullock_imax"
-    venues = [
+    venues: ClassVar[list[VenueInfo]] = [
         VenueInfo("bullock-imax", "Bullock Museum IMAX"),
         VenueInfo("bullock-tst", "Bullock Museum Texas Spirit Theater"),
     ]
@@ -147,7 +149,7 @@ class BullockImaxCollector(Collector):
         for cat in categories:
             norm = normalize_title(cat["title"])
             card = listing_by_norm.get(norm)
-            fmt = "3D" if re.search(r"\b3D\b", cat["title"], re.I) else (
+            fmt = "3D" if re.search(r"\b3D\b", cat["title"], re.IGNORECASE) else (
                 "IMAX" if cat["theater"] == "IMAX" else "Standard")
             starts_at = ends_at = None
             date_text = card["date_text"] if card else ""

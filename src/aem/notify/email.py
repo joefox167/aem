@@ -33,6 +33,6 @@ def send_html(user: str, app_password: str, to_addrs: str, subject: str, html: s
             smtp.login(user, app_password)
             smtp.sendmail(user, recipients, msg.as_string())
         return True
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 -- a failed send is reported, never raised
         log.error("email send failed: %s", exc)
         return False

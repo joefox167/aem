@@ -12,7 +12,8 @@ import logging
 import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+from typing import ClassVar
 
 from selectolax.parser import HTMLParser
 
@@ -49,8 +50,8 @@ def _parse_rss(text: str) -> list[RssItem]:
         starts_at = None
         if start_raw:
             try:
-                dt = datetime.fromisoformat(start_raw.replace("Z", "+00:00"))
-                starts_at = dt.astimezone(timezone.utc).replace(tzinfo=None)
+                dt = datetime.fromisoformat(start_raw)
+                starts_at = dt.astimezone(UTC).replace(tzinfo=None)
             except ValueError:
                 pass
         items.append(
@@ -86,7 +87,7 @@ def _parse_detail(html: str) -> dict:
     tagline = tree.css_first(".event_heading h2.tagline")
     if tagline:
         text = tagline.text(strip=True)
-        m = re.match(r"^with\s+(.*)$", text, re.I)
+        m = re.match(r"^with\s+(.*)$", text, re.IGNORECASE)
         if m:
             out["openers"] = [p.strip() for p in re.split(r"\s*[&,]\s*|\s+and\s+", m.group(1)) if p.strip()]
 
@@ -115,7 +116,7 @@ def _parse_detail(html: str) -> dict:
 
 class AclLiveCollector(Collector):
     id = "acl_live"
-    venues = [
+    venues: ClassVar[list[VenueInfo]] = [
         VenueInfo("moody-theater", "ACL Live at The Moody Theater"),
         VenueInfo("acl-3ten", "3TEN ACL Live"),
         VenueInfo("acl-pbs-taping", "Austin City Limits PBS Taping"),
@@ -149,7 +150,7 @@ class AclLiveCollector(Collector):
                 try:
                     detail_resp = await ctx.get(it.link)
                     detail = _parse_detail(detail_resp.text)
-                except Exception as exc:  # detail failures must not lose the event
+                except Exception as exc:  # noqa: BLE001 -- detail failures must not lose the event
                     log.warning("acl_live: detail fetch failed for %s: %s", it.link, exc)
                     detail = {}
                 if "tour" in detail:

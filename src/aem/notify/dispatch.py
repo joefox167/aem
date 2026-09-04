@@ -9,7 +9,8 @@ dedupe table guarantees at-most-once delivery per channel.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, time as dtime, timedelta
+from datetime import datetime, timedelta
+from datetime import time as dtime
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
