@@ -13,7 +13,9 @@ from sqlalchemy.orm import Session
 
 from ..models import EventKind, HttpCache, TicketStatus, utcnow
 
-USER_AGENT = "AEM/1.0 (personal homelab event monitor; +mailto:nightfox167@gmail.com)"
+# Identifies the poller to site operators without exposing a personal address;
+# the repo is the contact point.
+USER_AGENT = "AEM/1.0 (personal homelab event monitor; +https://github.com/joefox167/aem)"
 THROTTLE_SECONDS = 2.0
 
 
