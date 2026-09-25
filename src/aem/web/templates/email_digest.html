@@ -25,6 +25,7 @@
       {%- if item.event.attrs.get('format') and item.event.attrs['format'] != 'Standard' %} <span style="color:#8250df;">({{ item.event.attrs['format'] }})</span>{% endif %}
       <span style="color:#57606a;"> — {{ item.when }}</span>
       {%- if item.event.attrs.get('openers') %}<br><span style="color:#57606a; font-size:13px;">with {{ item.event.attrs['openers'] | join(', ') }}</span>{% endif %}
+      {%- if item.on_sale %}<br><span style="color:#1a7f37; font-size:13px;">🎟 on sale {{ item.on_sale }}</span>{% endif %}
       {%- if item.event.ticket_url and item.event.ticket_url != item.event.event_url %} <a href="{{ item.event.ticket_url }}" style="font-size:13px;">tickets</a>{% endif %}
     </li>
   {%- endmacro %}
@@ -68,7 +69,8 @@
     {% for item in updated %}
     <li style="margin-bottom:6px;">
       {{ category_tag(item) }}{{ title_link(item, 400) }}
-      <span style="color:#57606a;">({{ item.venue }}) — changed: {{ item.fields }}</span>
+      <span style="color:#57606a;">({{ item.venue }})</span>
+      <br><span style="color:#57606a; font-size:13px;">{{ item.details | join('; ') }}</span>
     </li>
     {% endfor %}
   </ul>
@@ -84,6 +86,12 @@
     </li>
     {% endfor %}
   </ul>
+  {% endif %}
+
+  {% if minor_updates %}
+  <p style="color:#8c959f; font-size:12px; margin-top:16px;">
+    {{ minor_updates }} minor update{{ 's' if minor_updates != 1 }} not shown (ticket link or end time only)
+  </p>
   {% endif %}
 
   {% if total == 0 %}<p>No changes since the last digest.</p>{% endif %}

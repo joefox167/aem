@@ -2,25 +2,21 @@ from __future__ import annotations
 
 from datetime import timedelta
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 
+from ..fmt import local_stamp
 from ..models import ChangeLog, ChangeType, Event, Venue, utcnow
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 
-def _fmt_local(dt, tz_name: str, with_time: bool = True):
-    if dt is None:
-        return "TBA"
-    local = dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo(tz_name))
-    fmt = "%a %b %d, %Y" + (" %I:%M %p" if with_time and (local.hour or local.minute) else "")
-    return local.strftime(fmt)
+# moved to aem.fmt so the digest email renders timestamps identically
+_fmt_local = local_stamp
 
 
 def _ctx(request: Request):

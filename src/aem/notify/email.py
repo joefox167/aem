@@ -17,7 +17,8 @@ def _parse_recipients(raw: str) -> list[str]:
     return [addr for _, addr in getaddresses([normalized]) if addr]
 
 
-def send_html(user: str, app_password: str, to_addrs: str, subject: str, html: str) -> bool:
+def send_html(user: str, app_password: str, to_addrs: str, subject: str, html: str,
+              text: str | None = None) -> bool:
     recipients = _parse_recipients(to_addrs)
     if not (user and app_password and recipients):
         log.debug("email: credentials/recipient not configured, skipping: %s", subject)
@@ -26,6 +27,9 @@ def send_html(user: str, app_password: str, to_addrs: str, subject: str, html: s
     msg["Subject"] = subject
     msg["From"] = user
     msg["To"] = ", ".join(recipients)
+    # RFC 2046: least-preferred alternative first, so text precedes html
+    if text:
+        msg.attach(MIMEText(text, "plain"))
     msg.attach(MIMEText(html, "html"))
     try:
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=30) as smtp:

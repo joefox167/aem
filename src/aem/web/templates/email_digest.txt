@@ -1,0 +1,49 @@
+Austin Entertainment Monitor — daily digest
+{{ date_label }} · {{ total }} change{{ 's' if total != 1 }}
+{% macro rows(bucket) %}
+{% for venue_name, items in bucket.items() %}
+  {{ venue_name }}
+{% for item in items %}
+    * [{{ item.category }}] {{ item.event.title }} — {{ item.when }}
+{% if item.on_sale %}
+      on sale {{ item.on_sale }}
+{% endif %}
+{% if item.event.event_url or item.event.ticket_url %}
+      {{ item.event.event_url or item.event.ticket_url }}
+{% endif %}
+{% endfor %}
+{% endfor %}
+{% endmacro %}
+{% if movies_added %}
+MOVIES ADDED
+{{ rows(movies_added) }}
+{% endif %}
+{% if concerts_added %}
+CONCERTS & LIVE EVENTS ADDED
+{{ rows(concerts_added) }}
+{% endif %}
+{% if ticket_changes %}
+TICKET STATUS
+{% for item in ticket_changes %}
+    * {{ item.to_status | title }} — {{ item.event.title }} ({{ item.venue }}, {{ item.when }})
+{% endfor %}
+{% endif %}
+{% if updated %}
+UPDATED
+{% for item in updated %}
+    * {{ item.event.title }} ({{ item.venue }})
+      {{ item.details | join('; ') }}
+{% endfor %}
+{% endif %}
+{% if removed %}
+REMOVED
+{% for item in removed %}
+    * {{ item.event.title }} ({{ item.venue }}, was {{ item.when }})
+{% endfor %}
+{% endif %}
+{% if minor_updates %}
+{{ minor_updates }} minor update{{ 's' if minor_updates != 1 }} not shown (ticket link or end time only).
+{% endif %}
+{% if total == 0 %}
+No changes since the last digest.
+{% endif %}

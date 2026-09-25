@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from .. import metrics
 from ..config import AppConfig, Settings
+from ..fmt import local_stamp, parse_utc
 from ..models import ChangeLog, ChangeType, Event, NotificationSent, Venue, utcnow
 from . import email as email_sender
 
@@ -22,11 +23,68 @@ _env = Environment(
     autoescape=select_autoescape(["html"]),
 )
 
+# the plain-text branch of the multipart: block tags must not leave blank lines
+_text_env = Environment(
+    loader=PackageLoader("aem", "web/templates"),
+    autoescape=False,
+    trim_blocks=True,
+    lstrip_blocks=True,
+)
 
-def _local(dt: datetime | None, tz: str) -> str:
-    if dt is None:
-        return "TBA"
-    return dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo(tz)).strftime("%a %b %d, %Y")
+
+# a vendor rewriting a ticket link or an end time is not news; rows that carry
+# nothing else are counted and summarized rather than listed
+NOISE_FIELDS = frozenset({"ticket_url", "ends_at"})
+
+_FIELD_VERBS = {
+    "starts_at": "moved",
+    "ticket_status": "tickets",
+    "title": "retitled",
+    "tour": "tour",
+    "openers": "openers",
+    "performers": "lineup",
+    "format": "format",
+    "series": "series",
+    "special_presentation": "presentation",
+    "theater": "theater",
+    "status_note": "note",
+}
+
+
+def _pretty(value: object) -> str:
+    if value is None or value == "" or value == []:
+        return "none"
+    if isinstance(value, (list, tuple)):
+        return ", ".join(str(v) for v in value)
+    return str(value).replace("_", " ")
+
+
+def _describe(field: str, old: object, new: object, tz: str) -> str:
+    verb = _FIELD_VERBS.get(field, field.replace("_", " "))
+    if field == "starts_at":
+        return f"{verb} {local_stamp(parse_utc(old), tz)} \u2192 {local_stamp(parse_utc(new), tz)}"
+    return f"{verb} {_pretty(old)} \u2192 {_pretty(new)}"
+
+
+def _change_details(change: ChangeLog, tz: str) -> list[str]:
+    """One "old -> new" phrase per meaningful field. field_changes already holds
+    both sides, so the digest can say what moved instead of just naming it."""
+    details = []
+    for field, pair in (change.field_changes or {}).items():
+        if field in NOISE_FIELDS:
+            continue
+        old, new = pair if isinstance(pair, list) and len(pair) == 2 else (None, None)
+        details.append(_describe(field, old, new, tz))
+    return details
+
+
+def _on_sale(event: Event, tz: str) -> str | None:
+    """An upcoming public sale time. One already past is clutter -- ticket_status
+    is what reports that tickets are on sale now."""
+    when = parse_utc((event.attrs or {}).get("public_sale_start"))
+    if when is None or when <= utcnow():
+        return None
+    return local_stamp(when, tz)
 
 
 _KIND_LABELS = {
@@ -62,6 +120,7 @@ def build_digest(session: Session, cfg: AppConfig) -> dict:
     ticket_changes: list = []
     updated: list = []
     removed: list = []
+    minor_updates = 0
 
     for change in changes:
         event = session.get(Event, change.event_id)
@@ -72,8 +131,9 @@ def build_digest(session: Session, cfg: AppConfig) -> dict:
         item = {
             "event": event,
             "venue": venue_name,
-            "when": _local(event.starts_at, cfg.timezone),
+            "when": local_stamp(event.starts_at, cfg.timezone),
             "category": _category(event),
+            "on_sale": _on_sale(event, cfg.timezone),
             "change": change,
         }
         if change.change_type == ChangeType.added.value:
@@ -84,7 +144,11 @@ def build_digest(session: Session, cfg: AppConfig) -> dict:
             item["to_status"] = (to_status or "?").replace("_", " ")
             ticket_changes.append(item)
         elif change.change_type == ChangeType.updated.value:
-            item["fields"] = ", ".join((change.field_changes or {}).keys())
+            details = _change_details(change, cfg.timezone)
+            if not details:
+                minor_updates += 1  # pure ticket_url / ends_at churn
+                continue
+            item["details"] = details
             updated.append(item)
         elif change.change_type == ChangeType.removed.value:
             removed.append(item)
@@ -95,6 +159,8 @@ def build_digest(session: Session, cfg: AppConfig) -> dict:
         "ticket_changes": ticket_changes,
         "updated": updated,
         "removed": removed,
+        # every change is stamped, including the ones held back from the body
+        "minor_updates": minor_updates,
         "change_ids": [c.id for c in changes],
         "total": len(changes),
     }
@@ -104,6 +170,13 @@ def render_digest(data: dict, settings: Settings, date_label: str) -> str:
     # settings stays in the signature for callers; the template links only to
     # public event URLs, so no internal base_url is passed in
     template = _env.get_template("email_digest.html")
+    return template.render(date_label=date_label, **data)
+
+
+def render_digest_text(data: dict, date_label: str) -> str:
+    """Plain-text alternative, so the multipart/alternative has a real second
+    branch -- better for spam scoring and for clients that show a text preview."""
+    template = _text_env.get_template("email_digest.txt")
     return template.render(date_label=date_label, **data)
 
 
@@ -126,9 +199,10 @@ def send_digest(session: Session, settings: Settings, cfg: AppConfig,
         return {"sent": False, "reason": "no changes to digest"}
 
     html = render_digest(data, settings, date_label)
+    text = render_digest_text(data, date_label)
     ok = email_sender.send_html(
         settings.gmail_user, settings.gmail_app_password, settings.digest_to,
-        f"AEM digest — {date_label} ({data['total']} changes)", html,
+        f"AEM digest — {date_label} ({data['total']} changes)", html, text=text,
     )
     if ok:
         now = utcnow()
