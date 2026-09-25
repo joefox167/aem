@@ -4,13 +4,28 @@
   <h2 style="border-bottom:2px solid #d0d7de; padding-bottom:8px;">🤠 Austin Entertainment Monitor</h2>
   <p style="color:#57606a;">Daily digest — {{ date_label }} · {{ total }} change{{ 's' if total != 1 }}</p>
 
+  {# the public listing is what a reader can actually open from anywhere; the
+     internal dashboard host only resolves on the LAN, so it is never linked #}
+  {% macro title_link(item, weight) -%}
+    {%- set link = item.event.event_url or item.event.ticket_url -%}
+    {%- if link -%}
+      <a href="{{ link }}" style="font-weight:{{ weight }}; color:#0969da; text-decoration:none;">{{ item.event.title }}</a>
+    {%- else -%}
+      <span style="font-weight:{{ weight }};">{{ item.event.title }}</span>
+    {%- endif -%}
+  {%- endmacro %}
+
+  {% macro category_tag(item) -%}
+    {%- if item.category %}<span style="display:inline-block; font-size:11px; font-weight:600; color:#57606a; background:#eaeef2; border-radius:10px; padding:1px 7px; margin-right:6px; text-transform:uppercase; letter-spacing:0.3px;">{{ item.category }}</span>{% endif %}
+  {%- endmacro %}
+
   {% macro event_row(item) -%}
     <li style="margin-bottom:6px;">
-      <a href="{{ base_url }}/event/{{ item.event.id }}" style="font-weight:600; color:#0969da; text-decoration:none;">{{ item.event.title }}</a>
+      {{ category_tag(item) }}{{ title_link(item, 600) }}
       {%- if item.event.attrs.get('format') and item.event.attrs['format'] != 'Standard' %} <span style="color:#8250df;">({{ item.event.attrs['format'] }})</span>{% endif %}
       <span style="color:#57606a;"> — {{ item.when }}</span>
       {%- if item.event.attrs.get('openers') %}<br><span style="color:#57606a; font-size:13px;">with {{ item.event.attrs['openers'] | join(', ') }}</span>{% endif %}
-      {%- if item.event.ticket_url %} <a href="{{ item.event.ticket_url }}" style="font-size:13px;">tickets</a>{% endif %}
+      {%- if item.event.ticket_url and item.event.ticket_url != item.event.event_url %} <a href="{{ item.event.ticket_url }}" style="font-size:13px;">tickets</a>{% endif %}
     </li>
   {%- endmacro %}
 
@@ -25,7 +40,7 @@
   {% endif %}
 
   {% if concerts_added %}
-  <h3 style="margin-bottom:4px;">🎸 Concerts Added</h3>
+  <h3 style="margin-bottom:4px;">🎸 Concerts &amp; Live Events Added</h3>
   {% for venue_name, items in concerts_added.items() %}
     <p style="margin:8px 0 2px; font-weight:600;">{{ venue_name }}</p>
     <ul style="margin:0 0 8px; padding-left:20px; list-style:none;">
@@ -40,7 +55,7 @@
     {% for item in ticket_changes %}
     <li style="margin-bottom:6px;">
       <strong style="color:#1a7f37;">{{ item.to_status | title }}</strong> —
-      <a href="{{ base_url }}/event/{{ item.event.id }}" style="color:#0969da; text-decoration:none;">{{ item.event.title }}</a>
+      {{ category_tag(item) }}{{ title_link(item, 400) }}
       <span style="color:#57606a;">({{ item.venue }}, {{ item.when }})</span>
     </li>
     {% endfor %}
@@ -52,7 +67,7 @@
   <ul style="padding-left:20px; list-style:none;">
     {% for item in updated %}
     <li style="margin-bottom:6px;">
-      <a href="{{ base_url }}/event/{{ item.event.id }}" style="color:#0969da; text-decoration:none;">{{ item.event.title }}</a>
+      {{ category_tag(item) }}{{ title_link(item, 400) }}
       <span style="color:#57606a;">({{ item.venue }}) — changed: {{ item.fields }}</span>
     </li>
     {% endfor %}
@@ -64,7 +79,7 @@
   <ul style="padding-left:20px; list-style:none;">
     {% for item in removed %}
     <li style="margin-bottom:6px;">
-      <span style="text-decoration:line-through;">{{ item.event.title }}</span>
+      {{ category_tag(item) }}<span style="text-decoration:line-through;">{{ item.event.title }}</span>
       <span style="color:#57606a;">({{ item.venue }}, was {{ item.when }})</span>
     </li>
     {% endfor %}
@@ -74,7 +89,7 @@
   {% if total == 0 %}<p>No changes since the last digest.</p>{% endif %}
 
   <p style="color:#8c959f; font-size:12px; border-top:1px solid #d0d7de; margin-top:24px; padding-top:8px;">
-    <a href="{{ base_url }}" style="color:#8c959f;">Open dashboard</a> · AEM
+    AEM · Austin Entertainment Monitor
   </p>
 </body>
 </html>

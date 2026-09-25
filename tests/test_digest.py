@@ -16,10 +16,14 @@ def _seed(session_factory):
         s.flush()
         movie = Event(source="bullock_imax", source_key="cat:1329", venue_id=theater.id,
                       kind="movie", title="The Odyssey", title_norm="odyssey",
-                      content_hash="a", ticket_status="on_sale", attrs={"format": "IMAX"})
+                      content_hash="a", ticket_status="on_sale", attrs={"format": "IMAX"},
+                      event_url="https://www.thestoryoftexas.com/imax/the-odyssey")
         show = Event(source="acl_live", source_key="g1", venue_id=hall.id,
-                     kind="concert", title="John Mulaney", title_norm="john mulaney",
-                     content_hash="b", ticket_status="coming_soon", attrs={})
+                     kind="comedy", title="John Mulaney", title_norm="john mulaney",
+                     content_hash="b", ticket_status="coming_soon",
+                     attrs={"genre": "Comedy"},
+                     event_url="https://acl-live.com/events/john-mulaney",
+                     ticket_url="https://www.ticketmaster.com/event/john-mulaney")
         s.add_all([movie, show])
         s.flush()
         s.add_all([
@@ -48,6 +52,37 @@ def test_build_and_render_digest(session_factory):
     assert "(IMAX)" in html
     assert "John Mulaney" in html
     assert "On Sale" in html or "on sale" in html.lower()
+    # titles link to the public listing, never to the LAN-only dashboard host
+    assert "home.arpa" not in html
+    assert "https://www.thestoryoftexas.com/imax/the-odyssey" in html
+    assert "https://acl-live.com/events/john-mulaney" in html
+    # a distinct ticket_url still earns its own secondary link
+    assert "https://www.ticketmaster.com/event/john-mulaney" in html
+    # category badges: source genre wins, event kind is the fallback
+    assert ">Comedy<" in html
+    assert ">Movie<" in html
+
+
+def test_event_without_public_url_renders_unlinked(session_factory):
+    with session_factory() as s:
+        venue = Venue(source="paramount", name="Paramount Theatre", slug="paramount")
+        s.add(venue)
+        s.flush()
+        s.add(Event(source="paramount", source_key="p1", venue_id=venue.id,
+                    kind="live_performance", title="Mystery Show", title_norm="mystery show",
+                    content_hash="c", attrs={}))
+        s.flush()
+        event_id = s.scalars(select(Event).where(Event.title == "Mystery Show")).one().id
+        s.add(ChangeLog(event_id=event_id, change_type="added", field_changes={}))
+        s.commit()
+
+    cfg = AppConfig()
+    with session_factory() as s:
+        data = digest.build_digest(s, cfg)
+    html = digest.render_digest(data, Settings(), "Testday")
+    assert "Mystery Show" in html
+    assert "<a href" not in html  # no listing URL, so no broken link
+    assert ">Live<" in html
 
 
 def test_send_digest_stamps_and_dedupes(session_factory):

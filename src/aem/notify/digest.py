@@ -29,6 +29,25 @@ def _local(dt: datetime | None, tz: str) -> str:
     return dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo(tz)).strftime("%a %b %d, %Y")
 
 
+_KIND_LABELS = {
+    "movie": "Movie",
+    "concert": "Concert",
+    "comedy": "Comedy",
+    "live_performance": "Live",
+    "special_event": "Special",
+}
+
+
+def _category(event: Event) -> str:
+    """At-a-glance label: the source's own genre when it gave us one, else the kind."""
+    attrs = event.attrs or {}
+    for key in ("genre", "subgenre", "segment"):
+        value = attrs.get(key)
+        if value and str(value).lower() not in ("undefined", "other", "miscellaneous"):
+            return str(value)
+    return _KIND_LABELS.get(event.kind, event.kind.replace("_", " ").title())
+
+
 def build_digest(session: Session, cfg: AppConfig) -> dict:
     """Collect all undigested, non-baseline changes grouped for rendering."""
     changes = session.scalars(
@@ -54,6 +73,7 @@ def build_digest(session: Session, cfg: AppConfig) -> dict:
             "event": event,
             "venue": venue_name,
             "when": _local(event.starts_at, cfg.timezone),
+            "category": _category(event),
             "change": change,
         }
         if change.change_type == ChangeType.added.value:
@@ -81,8 +101,10 @@ def build_digest(session: Session, cfg: AppConfig) -> dict:
 
 
 def render_digest(data: dict, settings: Settings, date_label: str) -> str:
+    # settings stays in the signature for callers; the template links only to
+    # public event URLs, so no internal base_url is passed in
     template = _env.get_template("email_digest.html")
-    return template.render(date_label=date_label, base_url=settings.base_url, **data)
+    return template.render(date_label=date_label, **data)
 
 
 def send_digest(session: Session, settings: Settings, cfg: AppConfig,
