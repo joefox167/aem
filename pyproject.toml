@@ -37,7 +37,7 @@ dev = [
 where = ["src"]
 
 [tool.setuptools.package-data]
-aem = ["web/templates/*.html", "web/static/*"]
+aem = ["web/templates/*.html", "web/templates/*.txt", "web/static/*"]
 
 [tool.ruff]
 line-length = 110
