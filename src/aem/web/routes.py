@@ -45,9 +45,13 @@ def _rows(session, events, tz: str, now) -> list[listing.Row]:
     return [listing.build_row(e, session.get(Venue, e.venue_id), tz, now) for e in events]
 
 
+def _count(sections) -> int:
+    return sum(len(rows) for _, rows in sections)
+
+
 def _current_rows(session, tz: str, now, today) -> list[listing.Row]:
     events = session.scalars(select(Event).where(Event.status == "active")).all()
-    return [r for r in _rows(session, events, tz, now) if listing.is_current(r, today)]
+    return [r for r in _rows(session, events, tz, now) if listing.is_current(r, today, now)]
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -59,19 +63,19 @@ def index(request: Request):
         today = local_today(tz)
         rows = _current_rows(session, tz, now, today)
 
-        weekend = listing.weekend_sections(rows, today)
-        on_weekend = {r.event.id for _, rs in weekend for r in rs}
-        # the weekend has its own section; the 14-day list picks up around it
+        weekend_start, weekend_end = listing.weekend_range(today)
+        weekend, weekend_runs = listing.weekend_sections(rows, today)
+        # the weekend has its own section and runs get a one-line mention, so the
+        # 14-day list covers only the other dated events
         horizon = today + timedelta(days=UPCOMING_DAYS - 1)
-        upcoming = [r for r in rows if r.day is not None and r.day <= horizon
-                    and r.event.id not in on_weekend]
+        upcoming = [r for r in rows if r.day is not None and today <= r.day <= horizon
+                    and not weekend_start <= r.day <= weekend_end]
 
         on_sale_soon = sorted(
             (r for r in rows if r.sale_at is not None or r.event.ticket_status in
              (TicketStatus.presale.value, TicketStatus.coming_soon.value)),
             key=lambda r: (r.sale_at is None, str(r.sale_at or ""), listing.sort_key(r)),
         )[:20]
-        weekend_start, weekend_end = listing.weekend_range(today)
 
         new_changes = session.scalars(
             select(ChangeLog)
@@ -94,11 +98,13 @@ def index(request: Request):
                    ChangeLog.detected_at >= now - timedelta(days=7))
             .order_by(ChangeLog.detected_at.desc()).limit(100)
         ))
+        upcoming_sections = listing.sections(upcoming, today)
         return templates.TemplateResponse(request, "index.html", _ctx(request) | {
             "new_today": new_today, "on_sale_soon": on_sale_soon,
-            "upcoming": listing.sections(upcoming, today), "upcoming_count": len(upcoming),
+            "upcoming": upcoming_sections, "upcoming_count": _count(upcoming_sections),
             "upcoming_days": UPCOMING_DAYS, "recent": recent,
             "weekend": weekend, "weekend_start": weekend_start, "weekend_end": weekend_end,
+            "weekend_runs": weekend_runs, "weekend_title": listing.weekend_title(today),
         })
     finally:
         session.close()
@@ -126,8 +132,9 @@ def events_page(request: Request, kind: str = "", genre: str = "", venue: str = 
             venue_id = None
         shown = listing.apply_filters(rows, today, kind=kind, genre=genre,
                                       venue=venue_id, when=when)
+        shown_sections = listing.sections(shown, today)
         ctx = _ctx(request) | {
-            "sections": listing.sections(shown, today), "count": len(shown),
+            "sections": shown_sections, "count": _count(shown_sections),
             "kind": kind, "genre": genre, "venue": venue_id, "when": when,
             "kinds": listing.KIND_FILTERS, "whens": listing.WHEN_FILTERS,
             "genres": genres, "venues": venues,
@@ -147,8 +154,8 @@ def _grouped_by_canonical(session, kind_filter, tz: str):
     now = utcnow()
     today = local_today(tz)
     events = session.scalars(select(Event).where(Event.status == "active", kind_filter)).all()
-    rows = sorted((r for r in _rows(session, events, tz, now) if listing.is_current(r, today)),
-                  key=listing.sort_key)
+    rows = listing.merge_performances(
+        [r for r in _rows(session, events, tz, now) if listing.is_current(r, today, now)])
     groups: dict = {}
     order = []
     for row in rows:

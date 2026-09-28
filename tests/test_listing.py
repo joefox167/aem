@@ -178,9 +178,9 @@ def client(session_factory, cfg):
 
 def test_dashboard_weekend_rows_are_not_repeated(client, session_factory):
     html = client.get("/").text
-    assert "This weekend" in html
-    # each event's row appears once on the dashboard even if it falls on the weekend
-    assert html.count('class="title" href="/event/1"') <= 1
+    assert "This weekend" in html or "Next weekend" in html
+    # "Soon Band" is on the dashboard once, whether it lands on the weekend or not
+    assert html.count('class="title" href="/event/1"') == 1
 
 
 def test_dashboard_renders_sections(client):
@@ -239,7 +239,7 @@ def test_presale_on_now_also_shows_public_date():
 
 # --- weekend --------------------------------------------------------------
 
-def test_weekend_sections_by_day_with_runs_first():
+def test_weekend_sections_by_day_with_runs_counted_not_listed():
     rows = [
         _row(title="sat", starts_at=datetime(2026, 10, 4, 1), eid=1),   # Sat 8 PM local
         _row(title="sun", starts_at=datetime(2026, 10, 4, 20), eid=2),  # Sun 3 PM local
@@ -247,16 +247,58 @@ def test_weekend_sections_by_day_with_runs_first():
              ends_at=datetime(2026, 12, 1), eid=3),
         _row(title="mon", starts_at=datetime(2026, 10, 6, 1), eid=4),
     ]
-    got = [(label, [r.event.title for r in rs])
-           for label, rs in listing.weekend_sections(rows, TODAY)]
-    assert got == [("All weekend", ["run"]), ("Saturday", ["sat"]), ("Sunday", ["sun"])]
+    secs, runs = listing.weekend_sections(rows, TODAY)
+    assert [(label, [r.event.title for r in rs]) for label, rs in secs] == \
+        [("Saturday", ["sat"]), ("Sunday", ["sun"])]
+    assert runs == 1
 
 
-def test_weekend_on_sunday_is_just_today():
+def test_on_sunday_the_weekend_is_next_weekend():
     sunday = date(2026, 10, 4)
-    assert listing.weekend_range(sunday) == (sunday, sunday)
-    rows = [_row(title="sun", starts_at=datetime(2026, 10, 4, 20), eid=1),
-            _row(title="fri", starts_at=datetime(2026, 10, 3, 1), eid=2)]
-    got = [(label, [r.event.title for r in rs])
-           for label, rs in listing.weekend_sections(rows, sunday)]
-    assert got == [("Sunday (today)", ["sun"])]
+    assert listing.weekend_range(sunday) == (date(2026, 10, 9), date(2026, 10, 11))
+    assert listing.weekend_title(sunday) == "Next weekend"
+    assert listing.weekend_title(date(2026, 10, 3)) == "This weekend"
+    rows = [_row(title="tonight", starts_at=datetime(2026, 10, 5, 1), eid=1),  # Sun 8 PM
+            _row(title="next fri", starts_at=datetime(2026, 10, 10, 1), eid=2)]
+    secs, _ = listing.weekend_sections(rows, sunday)
+    assert [(label, [r.event.title for r in rs]) for label, rs in secs] == \
+        [("Friday", ["next fri"])]
+
+
+def test_timed_show_is_over_three_hours_after_it_starts():
+    matinee = _row(starts_at=datetime(2026, 10, 1, 18))   # 1 PM local, today
+    evening = _row(starts_at=datetime(2026, 10, 2, 0, 30))  # 7:30 PM local, today
+    date_only = _row(starts_at=datetime(2026, 10, 1))
+    at_8pm = datetime(2026, 10, 2, 1, 0)
+    assert not listing.is_current(matinee, TODAY, at_8pm)
+    assert listing.is_current(evening, TODAY, at_8pm)
+    assert listing.is_current(date_only, TODAY, at_8pm)
+
+
+def test_matinee_and_evening_merge_into_one_row():
+    rows = [
+        _row(title="Mrs. Doubtfire", starts_at=datetime(2026, 10, 3, 18), eid=1,
+             ticket_status="sold_out"),
+        _row(title="Mrs. Doubtfire", starts_at=datetime(2026, 10, 3, 23, 30), eid=2),
+        _row(title="Mrs. Doubtfire", starts_at=datetime(2026, 10, 4, 18), eid=3),
+    ]
+    merged = listing.merge_performances(rows)
+    assert [(r.event.id, r.times) for r in merged] == \
+        [(1, "1:00 PM & 6:30 PM"), (3, "1:00 PM")]
+    # the evening show isn't sold out, so the merged row isn't either
+    assert ("sold-out", "Sold out") not in merged[0].badges
+    # merging works on copies: the inputs are untouched and a second pass is identical
+    assert rows[0].extra_times == [] and rows[0].badges == [("sold-out", "Sold out")]
+    assert [r.times for r in listing.merge_performances(rows)] == ["1:00 PM & 6:30 PM", "1:00 PM"]
+
+
+def test_duplicate_listing_does_not_repeat_the_time():
+    rows = [_row(title="Sara Bareilles", starts_at=datetime(2026, 10, 9, 1), eid=1),
+            _row(title="Sara Bareilles", starts_at=datetime(2026, 10, 9, 1), eid=2)]
+    assert [r.times for r in listing.merge_performances(rows)] == ["8:00 PM"]
+
+
+def test_timed_shows_sort_before_date_only_on_the_same_day():
+    rows = [_row(title="date only", starts_at=datetime(2026, 10, 3), eid=1),
+            _row(title="noon", starts_at=datetime(2026, 10, 3, 17), eid=2)]
+    assert [r.event.title for r in sorted(rows, key=listing.sort_key)] == ["noon", "date only"]
