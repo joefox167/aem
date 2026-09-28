@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 
-from ..fmt import category, local_day, local_time, price_label, upcoming_sale
+from ..fmt import category, local_day, local_time, next_sale, price_label, upcoming_sale
 from ..models import Event, TicketStatus, Venue
 
 NEW_FOR = timedelta(hours=48)
@@ -48,16 +48,17 @@ class Row:
         return list((self.event.attrs or {}).get("openers") or [])
 
 
-def _sale_label(when: datetime, tz: str) -> str:
+def _sale_label(prefix: str, when: datetime, tz: str) -> str:
     day = local_day(when, tz)
     time = local_time(when, tz)
-    return f"On sale {day:%a %b} {day.day}" + (f", {time}" if time else "")
+    return f"{prefix} {day:%a %b} {day.day}" + (f", {time}" if time else "")
 
 
 def build_row(event: Event, venue: Venue | None, tz: str, now: datetime) -> Row:
     day = local_day(event.starts_at, tz)
     end_day = local_day(event.ends_at, tz)
-    sale_at = upcoming_sale(event.attrs, now)
+    sale = next_sale(event.attrs, now)
+    sale_at = sale[0] if sale else None
 
     # only the states worth a glance: "on sale" is the norm and "unknown" says nothing
     badges: list[tuple[str, str]] = []
@@ -66,9 +67,12 @@ def build_row(event: Event, venue: Venue | None, tz: str, now: datetime) -> Row:
     if event.ticket_status == TicketStatus.sold_out.value:
         badges.append(("sold-out", "Sold out"))
     elif event.ticket_status == TicketStatus.presale.value:
-        badges.append(("presale", "Presale"))
-    elif sale_at is not None:
-        badges.append(("soon", _sale_label(sale_at, tz)))
+        badges.append(("presale", "Presale on now"))
+        public = upcoming_sale(event.attrs, now)
+        if public is not None:
+            badges.append(("soon", _sale_label("On sale", public, tz)))
+    elif sale is not None:
+        badges.append(("soon", _sale_label(sale[1], sale[0], tz)))
     elif event.ticket_status == TicketStatus.coming_soon.value:
         badges.append(("soon", "Coming soon"))
     if event.first_seen and now - event.first_seen < NEW_FOR:
@@ -134,14 +138,36 @@ def sections(rows: list[Row], today: date) -> list[tuple[str, list[Row]]]:
     return out
 
 
+def weekend_range(today: date) -> tuple[date, date]:
+    """The part of the Fri-Sun weekend that is still ahead: on a Saturday that's
+    Saturday and Sunday; Monday to Thursday it's the coming weekend."""
+    friday, sunday = _week_bounds(today)
+    return max(friday, today), sunday
+
+
+def weekend_sections(rows: list[Row], today: date) -> list[tuple[str, list[Row]]]:
+    """This weekend's rows by day; runs that span it go first as "All weekend"."""
+    start, _ = weekend_range(today)
+    out: list[tuple[str, list[Row]]] = []
+    for row in sorted(apply_filters(rows, today, when="weekend"), key=sort_key):
+        if row.day < start:
+            label = "All weekend"
+        else:
+            label = f"{row.day:%A}" + (" (today)" if row.day == today else "")
+        if out and out[-1][0] == label:
+            out[-1][1].append(row)
+        else:
+            out.append((label, [row]))
+    return out
+
+
 def _in_window(row: Row, when: str, today: date) -> bool:
     if not when:
         return True
     if row.day is None:
         return False
     if when == "weekend":
-        friday, sunday = _week_bounds(today)
-        start, end = max(friday, today), sunday
+        start, end = weekend_range(today)
     else:
         start, end = today, today + timedelta(days=6 if when == "7d" else 29)
     # a run overlaps the window if it starts before the end and ends after the start

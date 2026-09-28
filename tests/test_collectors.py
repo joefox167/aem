@@ -356,3 +356,46 @@ async def test_paramount_empty_api_is_drift(ctx, paramount_now):
 
     with pytest.raises(ParseDriftError):
         await ParamountCollector().fetch(ctx)
+
+
+
+# --- Ticketmaster sale state ------------------------------------------------
+
+def _tm_item(code="onsale", public_start=None, presales=None):
+    sales = {"public": {"startDateTime": public_start}} if public_start else {}
+    if presales:
+        sales["presales"] = presales
+    return {"dates": {"status": {"code": code}}, "sales": sales}
+
+
+def test_tm_offsale_before_public_sale_is_coming_soon_not_sold_out():
+    from aem.collectors.ticketmaster import _ticket_status
+    from aem.models import TicketStatus
+    now = datetime(2026, 9, 28, 12)
+    item = _tm_item("offsale", "2026-10-02T15:00:00Z")
+    assert _ticket_status(item, now) == (TicketStatus.coming_soon, None)
+    # after the public sale opened, offsale does mean gone
+    assert _ticket_status(_tm_item("offsale", "2026-09-01T15:00:00Z"), now) == \
+        (TicketStatus.sold_out, None)
+    # the 9999 placeholder is not a future sale
+    assert _ticket_status(_tm_item("offsale", "9999-12-31T06:00:00Z"), now) == \
+        (TicketStatus.sold_out, None)
+
+
+def test_tm_presale_window_and_vip_packages():
+    from aem.collectors.ticketmaster import _next_presale, _ticket_status
+    from aem.models import TicketStatus
+    now = datetime(2026, 9, 28, 12)
+    vip = {"name": "VIP Packages Onsale", "startDateTime": "2010-01-01T15:00:00Z",
+           "endDateTime": "2027-01-01T15:00:00Z"}
+    wave1 = {"name": "Artist Presale Wave 1", "startDateTime": "2026-09-30T15:00:00Z",
+             "endDateTime": "2026-10-01T04:00:00Z"}
+    venue = {"name": "Venue Presale", "startDateTime": "2026-10-01T15:00:00Z",
+             "endDateTime": "2026-10-02T04:00:00Z"}
+    item = _tm_item("offsale", "2026-10-02T15:00:00Z", [vip, venue, wave1])
+    # an open VIP window is not a ticket presale
+    assert _ticket_status(item, now) == (TicketStatus.coming_soon, None)
+    assert _next_presale(item["sales"], now) == "2026-09-30T15:00:00Z"
+    during = datetime(2026, 9, 30, 16)
+    assert _ticket_status(item, during) == (TicketStatus.presale, None)
+    assert _next_presale(item["sales"], during) == "2026-10-01T15:00:00Z"

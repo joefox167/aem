@@ -118,11 +118,31 @@ def _in_window(now: datetime, start: str | None, end: str | None) -> bool:
     return s <= now and (e is None or e >= now)
 
 
+# Discovery fills sale dates it doesn't have with far-off placeholders (9999-12-31)
+_PLACEHOLDER_YEAR = 9000
+
+
+def _ticket_presales(sales: dict) -> list[dict]:
+    """Presales that sell tickets. VIP-package "presales" run for months on end
+    and would pin an event to `presale` long before anyone can buy a seat."""
+    return [p for p in sales.get("presales") or []
+            if "vip" not in (p.get("name") or "").lower()]
+
+
+def _next_presale(sales: dict, now: datetime) -> str | None:
+    """Start of the earliest ticket presale that hasn't opened yet."""
+    upcoming = [(dt, p["startDateTime"]) for p in _ticket_presales(sales)
+                if (dt := _parse_dt(p.get("startDateTime"))) is not None and dt > now]
+    return min(upcoming)[1] if upcoming else None
+
+
 def _ticket_status(item: dict, now: datetime) -> tuple[TicketStatus | None, str | None]:
     """Derive sale state. Returns (status, abnormal_status_note).
 
     Discovery exposes no sold-out flag, so `offsale` on a future event is the
-    closest honest signal that tickets can no longer be bought. Cancelled and
+    closest honest signal that tickets can no longer be bought -- but only once
+    the public sale has started: Discovery also reports `offsale` for newly
+    announced events whose tickets aren't on sale *yet*. Cancelled and
     postponed events keep their previous status — they are schedule news, not
     sale news, and are surfaced through `status_note` instead.
     """
@@ -133,16 +153,20 @@ def _ticket_status(item: dict, now: datetime) -> tuple[TicketStatus | None, str 
 
     sales = item.get("sales") or {}
     public = sales.get("public") or {}
+    presales = _ticket_presales(sales)
+    public_start = _parse_dt(public.get("startDateTime"))
+    if public_start is not None and now < public_start and public_start.year < _PLACEHOLDER_YEAR:
+        for presale in presales:
+            if _in_window(now, presale.get("startDateTime"), presale.get("endDateTime")):
+                return TicketStatus.presale, None
+        return TicketStatus.coming_soon, None
     if code == "offsale":
         return TicketStatus.sold_out, None
     if _in_window(now, public.get("startDateTime"), public.get("endDateTime")):
         return TicketStatus.on_sale, None
-    for presale in sales.get("presales") or []:
+    for presale in presales:
         if _in_window(now, presale.get("startDateTime"), presale.get("endDateTime")):
             return TicketStatus.presale, None
-    public_start = _parse_dt(public.get("startDateTime"))
-    if public_start is not None and public_start > now:
-        return TicketStatus.coming_soon, None
     if code == "onsale":
         return TicketStatus.on_sale, None
     return TicketStatus.unknown, None
@@ -203,6 +227,9 @@ def _map_event(item: dict, now: datetime) -> RawEvent | None:
     public_start = ((item.get("sales") or {}).get("public") or {}).get("startDateTime")
     if public_start:
         attrs["public_sale_start"] = public_start
+    presale_start = _next_presale(item.get("sales") or {}, now)
+    if presale_start:
+        attrs["presale_start"] = presale_start
 
     return RawEvent(
         source_key=event_id,

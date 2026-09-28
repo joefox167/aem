@@ -107,3 +107,15 @@ def price_label(attrs: dict | None) -> str | None:
 
 def local_today(tz_name: str) -> date:
     return datetime.now(ZoneInfo(tz_name)).date()
+
+
+def next_sale(attrs: dict | None, now: datetime) -> tuple[datetime, str] | None:
+    """The earliest real upcoming sale as (when, "Presale" | "On sale")."""
+    options = []
+    presale = parse_utc((attrs or {}).get("presale_start"))
+    if presale is not None and presale > now and presale.year < _SALE_PLACEHOLDER_YEAR:
+        options.append((presale, "Presale"))
+    public = upcoming_sale(attrs, now)
+    if public is not None:
+        options.append((public, "On sale"))
+    return min(options) if options else None

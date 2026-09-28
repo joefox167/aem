@@ -12,6 +12,16 @@
 {% endif %}
 
 <section>
+  <h3>🎉 This weekend <small class="muted">
+    {%- if weekend_start == weekend_end %} {{ weekend_start.strftime('%a %b') }} {{ weekend_start.day }}
+    {%- else %} {{ weekend_start.strftime('%a %b') }} {{ weekend_start.day }} – {{ weekend_end.strftime('%a %b') }} {{ weekend_end.day }}{% endif %}
+    · <a href="/events?when=weekend">filter</a></small></h3>
+  {% if weekend %}
+    {% with sections = weekend %}{% include "_sections.html" %}{% endwith %}
+  {% else %}<p class="muted">Nothing on this weekend yet.</p>{% endif %}
+</section>
+
+<section>
   <h3>🆕 New today</h3>
   {% if new_today %}
   <ul class="rows">
@@ -21,7 +31,7 @@
 </section>
 
 <section>
-  <h3>📅 Next {{ upcoming_days }} days <small class="muted">{{ upcoming_count }} events · <a href="/events">browse all</a></small></h3>
+  <h3>📅 Coming up <small class="muted">next {{ upcoming_days }} days, besides the weekend · {{ upcoming_count }} events · <a href="/events">browse all</a></small></h3>
   {% if upcoming %}
     {% with sections = upcoming %}{% include "_sections.html" %}{% endwith %}
   {% else %}<p class="muted">No dated events in the next two weeks.</p>{% endif %}

@@ -59,14 +59,19 @@ def index(request: Request):
         today = local_today(tz)
         rows = _current_rows(session, tz, now, today)
 
+        weekend = listing.weekend_sections(rows, today)
+        on_weekend = {r.event.id for _, rs in weekend for r in rs}
+        # the weekend has its own section; the 14-day list picks up around it
         horizon = today + timedelta(days=UPCOMING_DAYS - 1)
-        upcoming = [r for r in rows if r.day is not None and r.day <= horizon]
+        upcoming = [r for r in rows if r.day is not None and r.day <= horizon
+                    and r.event.id not in on_weekend]
 
         on_sale_soon = sorted(
             (r for r in rows if r.sale_at is not None or r.event.ticket_status in
              (TicketStatus.presale.value, TicketStatus.coming_soon.value)),
-            key=lambda r: (r.sale_at is None, r.sale_at or now, listing.sort_key(r)),
+            key=lambda r: (r.sale_at is None, str(r.sale_at or ""), listing.sort_key(r)),
         )[:20]
+        weekend_start, weekend_end = listing.weekend_range(today)
 
         new_changes = session.scalars(
             select(ChangeLog)
@@ -93,6 +98,7 @@ def index(request: Request):
             "new_today": new_today, "on_sale_soon": on_sale_soon,
             "upcoming": listing.sections(upcoming, today), "upcoming_count": len(upcoming),
             "upcoming_days": UPCOMING_DAYS, "recent": recent,
+            "weekend": weekend, "weekend_start": weekend_start, "weekend_end": weekend_end,
         })
     finally:
         session.close()

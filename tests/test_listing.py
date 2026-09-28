@@ -176,6 +176,13 @@ def client(session_factory, cfg):
     return TestClient(app)
 
 
+def test_dashboard_weekend_rows_are_not_repeated(client, session_factory):
+    html = client.get("/").text
+    assert "This weekend" in html
+    # each event's row appears once on the dashboard even if it falls on the weekend
+    assert html.count('class="title" href="/event/1"') <= 1
+
+
 def test_dashboard_renders_sections(client):
     html = client.get("/").text
     assert "Going on sale soon" in html and "Presale Comic" in html
@@ -207,3 +214,49 @@ def test_stale_genre_is_dropped_when_kind_changes(client):
 def test_concerts_redirects_to_events(client):
     resp = client.get("/concerts", follow_redirects=False)
     assert resp.status_code == 301 and resp.headers["location"] == "/events?kind=concert"
+
+
+# --- sale timing ----------------------------------------------------------
+
+def test_next_sale_picks_earliest_real_sale():
+    from aem.fmt import next_sale
+    attrs = {"presale_start": "2026-10-02T15:00:00Z", "public_sale_start": "2026-10-03T15:00:00Z"}
+    assert next_sale(attrs, NOW) == (datetime(2026, 10, 2, 15, 0), "Presale")
+    assert next_sale({"public_sale_start": "9999-12-31T06:00:00Z"}, NOW) is None
+
+
+def test_upcoming_presale_badge():
+    row = _row(ticket_status="coming_soon",
+               attrs={"presale_start": "2026-10-02T15:00:00Z",
+                      "public_sale_start": "2026-10-03T15:00:00Z"})
+    assert row.badges == [("soon", "Presale Fri Oct 2, 10:00 AM")]
+
+
+def test_presale_on_now_also_shows_public_date():
+    row = _row(ticket_status="presale", attrs={"public_sale_start": "2026-10-03T15:00:00Z"})
+    assert row.badges == [("presale", "Presale on now"), ("soon", "On sale Sat Oct 3, 10:00 AM")]
+
+
+# --- weekend --------------------------------------------------------------
+
+def test_weekend_sections_by_day_with_runs_first():
+    rows = [
+        _row(title="sat", starts_at=datetime(2026, 10, 4, 1), eid=1),   # Sat 8 PM local
+        _row(title="sun", starts_at=datetime(2026, 10, 4, 20), eid=2),  # Sun 3 PM local
+        _row(title="run", kind="movie", starts_at=datetime(2026, 9, 1),
+             ends_at=datetime(2026, 12, 1), eid=3),
+        _row(title="mon", starts_at=datetime(2026, 10, 6, 1), eid=4),
+    ]
+    got = [(label, [r.event.title for r in rs])
+           for label, rs in listing.weekend_sections(rows, TODAY)]
+    assert got == [("All weekend", ["run"]), ("Saturday", ["sat"]), ("Sunday", ["sun"])]
+
+
+def test_weekend_on_sunday_is_just_today():
+    sunday = date(2026, 10, 4)
+    assert listing.weekend_range(sunday) == (sunday, sunday)
+    rows = [_row(title="sun", starts_at=datetime(2026, 10, 4, 20), eid=1),
+            _row(title="fri", starts_at=datetime(2026, 10, 3, 1), eid=2)]
+    got = [(label, [r.event.title for r in rs])
+           for label, rs in listing.weekend_sections(rows, sunday)]
+    assert got == [("Sunday (today)", ["sun"])]
