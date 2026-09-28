@@ -12,6 +12,7 @@
     {%- for css, label in row.badges %} <span class="tag {{ css }}">{{ label }}</span>{% endfor %}
     <div class="meta">
       {{ row.venue.name if row.venue else '?' }}
+      {%- if row.performances > 1 %} · {{ row.performances }} performances{% endif %}
       {%- if row.times %} · {{ row.times }}{% endif %}
       {%- if row.end_day %} · through {{ row.end_day.strftime('%a %b') }} {{ row.end_day.day }}{% endif %}
       · {{ row.category }}

@@ -46,6 +46,7 @@ class Row:
     sale_at: datetime | None
     badges: list[tuple[str, str]] = field(default_factory=list)
     extra_times: list[str] = field(default_factory=list)
+    performances: int = 1
 
     @property
     def openers(self) -> list[str]:
@@ -168,6 +169,31 @@ def merge_performances(rows: list[Row]) -> list[Row]:
     return out
 
 
+def group_shows(rows: list[Row]) -> list[Row]:
+    """One row per show (title + venue) for summary lists like "New today": a
+    touring musical's 16 performances become one row reading "16 performances ·
+    through <last date>", linked to the first performance."""
+    out: list[Row] = []
+    by_key: dict[tuple, Row] = {}
+    for row in sorted(rows, key=sort_key):
+        key = (row.event.title.strip().lower(), row.event.venue_id)
+        first = by_key.get(key)
+        if first is None:
+            first = replace(row, badges=list(row.badges), extra_times=list(row.extra_times))
+            by_key[key] = first
+            out.append(first)
+            continue
+        first.performances += 1
+        last = row.end_day or row.day
+        if last and first.day and last > (first.end_day or first.day):
+            first.end_day = last
+    for row in out:
+        if row.performances > 1:
+            # times differ per date; the event page has them
+            row.time, row.extra_times = None, []
+    return out
+
+
 def sections(rows: list[Row], today: date) -> list[tuple[str, list[Row]]]:
     """Consecutive date sections in chronological order; runs already playing
     first, undated events last. Labels are monotonic in date, so grouping the
@@ -226,12 +252,17 @@ def _in_window(row: Row, when: str, today: date) -> bool:
     return row.day <= end and (row.end_day or row.day) >= start
 
 
+def is_new(row: Row) -> bool:
+    return any(css == "new" for css, _ in row.badges)
+
+
 def apply_filters(rows: list[Row], today: date, *, kind: str = "", genre: str = "",
-                  venue: int | None = None, when: str = "") -> list[Row]:
+                  venue: int | None = None, when: str = "", new: bool = False) -> list[Row]:
     kinds = KIND_FILTERS.get(kind, KIND_FILTERS[""])[1]
     return [
         r for r in rows
-        if (kinds is None or r.event.kind in kinds)
+        if (not new or is_new(r))
+        and (kinds is None or r.event.kind in kinds)
         and (not genre or r.category == genre)
         and (venue is None or r.event.venue_id == venue)
         and _in_window(r, when, today)

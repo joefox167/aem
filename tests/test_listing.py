@@ -156,17 +156,19 @@ def client(session_factory, cfg):
         venue = Venue(source="t", name="Emo's Austin", slug="emos")
         s.add(venue)
         s.flush()
+        old = now - timedelta(days=30)  # not "new", unless a test says so
         s.add_all([
             Event(source="t", source_key="a", venue_id=venue.id, kind="concert",
                   title="Soon Band", title_norm="soon band", content_hash="a",
                   starts_at=now + timedelta(days=2), attrs={"genre": "Rock"},
-                  ticket_status="sold_out"),
+                  ticket_status="sold_out", first_seen=old),
             Event(source="t", source_key="b", venue_id=venue.id, kind="movie",
                   title="Old Film", title_norm="old film", content_hash="b",
-                  starts_at=now - timedelta(days=30)),
+                  starts_at=now - timedelta(days=30), first_seen=old),
             Event(source="t", source_key="c", venue_id=venue.id, kind="comedy",
                   title="Presale Comic", title_norm="presale comic", content_hash="c",
-                  starts_at=now + timedelta(days=40), ticket_status="presale"),
+                  starts_at=now + timedelta(days=40), ticket_status="presale",
+                  first_seen=old),
         ])
         s.commit()
     app = FastAPI()
@@ -302,3 +304,35 @@ def test_timed_shows_sort_before_date_only_on_the_same_day():
     rows = [_row(title="date only", starts_at=datetime(2026, 10, 3), eid=1),
             _row(title="noon", starts_at=datetime(2026, 10, 3, 17), eid=2)]
     assert [r.event.title for r in sorted(rows, key=listing.sort_key)] == ["noon", "date only"]
+
+
+def test_group_shows_collapses_a_run_of_performances():
+    rows = [_row(title="Harry Potter", starts_at=datetime(2027, 4, d, 1), eid=d)
+            for d in (6, 7, 8)] + [_row(title="Solo", starts_at=datetime(2027, 4, 7, 1), eid=9)]
+    grouped = listing.group_shows(rows)
+    assert [(r.event.title, r.performances, r.day, r.end_day, r.times) for r in grouped] == [
+        ("Harry Potter", 3, date(2027, 4, 5), date(2027, 4, 7), None),
+        ("Solo", 1, date(2027, 4, 6), None, "8:00 PM"),
+    ]
+    assert rows[0].performances == 1  # inputs untouched
+
+
+def test_new_filter_uses_the_new_badge():
+    fresh = _row(title="fresh", first_seen=NOW - timedelta(hours=5), eid=1)
+    stale = _row(title="stale", eid=2)
+    assert listing.apply_filters([fresh, stale], TODAY, new=True) == [fresh]
+
+
+def test_just_announced_groups_performances(client, session_factory):
+    now = utcnow()
+    with session_factory() as s:
+        for d in range(3):
+            s.add(Event(source="t", source_key=f"hp{d}", venue_id=1, kind="live_performance",
+                        title="Harry Potter", title_norm="harry potter", content_hash="h",
+                        starts_at=now + timedelta(days=60 + d)))
+        s.commit()
+    html = client.get("/").text
+    assert "Just announced" in html and "3 performances" in html
+    assert html.count(">Harry Potter</a>") == 1
+    html = client.get("/events?new=1").text
+    assert "Harry Potter" in html and "Presale Comic" not in html

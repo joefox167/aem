@@ -141,8 +141,9 @@ def _ticket_status(item: dict, now: datetime) -> tuple[TicketStatus | None, str 
 
     Discovery exposes no sold-out flag, so `offsale` on a future event is the
     closest honest signal that tickets can no longer be bought -- but only once
-    the public sale has started: Discovery also reports `offsale` for newly
-    announced events whose tickets aren't on sale *yet*. Cancelled and
+    a real public sale has started: Discovery also reports `offsale` for newly
+    announced events whose tickets aren't on sale *yet*, and for events it
+    doesn't sell at all (placeholder or missing sale date). Cancelled and
     postponed events keep their previous status — they are schedule news, not
     sale news, and are surfaced through `status_note` instead.
     """
@@ -155,13 +156,17 @@ def _ticket_status(item: dict, now: datetime) -> tuple[TicketStatus | None, str 
     public = sales.get("public") or {}
     presales = _ticket_presales(sales)
     public_start = _parse_dt(public.get("startDateTime"))
-    if public_start is not None and now < public_start and public_start.year < _PLACEHOLDER_YEAR:
+    real_start = public_start is not None and public_start.year < _PLACEHOLDER_YEAR
+    if real_start and now < public_start:
         for presale in presales:
             if _in_window(now, presale.get("startDateTime"), presale.get("endDateTime")):
                 return TicketStatus.presale, None
         return TicketStatus.coming_soon, None
     if code == "offsale":
-        return TicketStatus.sold_out, None
+        # with no real public sale date, Ticketmaster isn't selling this event at
+        # all (touring Broadway at Bass Concert Hall sells through its own box
+        # office) -- that says nothing about whether seats are left
+        return (TicketStatus.sold_out if real_start else TicketStatus.unknown), None
     if _in_window(now, public.get("startDateTime"), public.get("endDateTime")):
         return TicketStatus.on_sale, None
     for presale in presales:

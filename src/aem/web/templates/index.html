@@ -23,12 +23,14 @@
 </section>
 
 <section>
-  <h3>🆕 New today</h3>
-  {% if new_today %}
+  <h3>🆕 Just announced <small class="muted">first seen in the last 48 hours
+    {%- if new_count %} · {{ new_count }} show{{ 's' if new_count != 1 }} · <a href="/events?new=1">see all</a>{% endif %}</small></h3>
+  {% if new_shows %}
   <ul class="rows">
-    {% for row in new_today %}{% include "_row.html" %}{% endfor %}
+    {% for row in new_shows %}{% include "_row.html" %}{% endfor %}
   </ul>
-  {% else %}<p class="muted">Nothing new in the last 24 hours.</p>{% endif %}
+  {% if new_count > new_shows | length %}<p class="muted"><a href="/events?new=1">+ {{ new_count - new_shows | length }} more</a></p>{% endif %}
+  {% else %}<p class="muted">Nothing new in the last two days.</p>{% endif %}
 </section>
 
 <section>

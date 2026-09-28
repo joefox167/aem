@@ -28,11 +28,14 @@
       {% endfor %}
     </select>
   </div>
+  {% if new %}<input type="hidden" name="new" value="1">
+  <p><span class="tag new">New</span> Only events first seen in the last 48 hours ·
+    <a href="/events" hx-get="/events" hx-target="#browse" hx-swap="outerHTML" hx-push-url="true">show everything</a></p>{% endif %}
   <noscript><button type="submit">Apply filters</button></noscript>
 </form>
 
 <p class="count">{{ count }} event{{ '' if count == 1 else 's' }}
-  {%- if kind or genre or venue or when %} · <a href="/events" hx-get="/events" hx-target="#browse" hx-swap="outerHTML" hx-push-url="true">clear filters</a>{% endif %}</p>
+  {%- if kind or genre or venue or when or new %} · <a href="/events" hx-get="/events" hx-target="#browse" hx-swap="outerHTML" hx-push-url="true">clear filters</a>{% endif %}</p>
 
 <div id="event-list">
   {% include "_sections.html" %}

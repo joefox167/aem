@@ -20,6 +20,7 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 _fmt_local = local_stamp
 
 UPCOMING_DAYS = 14
+NEW_SHOWN = 10
 
 
 def _ctx(request: Request):
@@ -77,20 +78,8 @@ def index(request: Request):
             key=lambda r: (r.sale_at is None, str(r.sale_at or ""), listing.sort_key(r)),
         )[:20]
 
-        new_changes = session.scalars(
-            select(ChangeLog)
-            .where(ChangeLog.change_type == ChangeType.added.value,
-                   ChangeLog.detected_at >= now - timedelta(hours=24))
-            .order_by(ChangeLog.detected_at.desc()).limit(50)
-        ).all()
-        by_id = {r.event.id: r for r in rows}
-        seen: set[int] = set()
-        new_today = []
-        for change in new_changes:
-            row = by_id.get(change.event_id)
-            if row is not None and row.event.id not in seen:
-                seen.add(row.event.id)
-                new_today.append(row)
+        # one row per show: a touring musical's 16 new performances are one announcement
+        new_shows = listing.group_shows([r for r in rows if listing.is_new(r)])
 
         recent = _hydrate_changes(session, session.scalars(
             select(ChangeLog)
@@ -100,7 +89,8 @@ def index(request: Request):
         ))
         upcoming_sections = listing.sections(upcoming, today)
         return templates.TemplateResponse(request, "index.html", _ctx(request) | {
-            "new_today": new_today, "on_sale_soon": on_sale_soon,
+            "new_shows": new_shows[:NEW_SHOWN], "new_count": len(new_shows),
+            "on_sale_soon": on_sale_soon,
             "upcoming": upcoming_sections, "upcoming_count": _count(upcoming_sections),
             "upcoming_days": UPCOMING_DAYS, "recent": recent,
             "weekend": weekend, "weekend_start": weekend_start, "weekend_end": weekend_end,
@@ -112,7 +102,7 @@ def index(request: Request):
 
 @router.get("/events", response_class=HTMLResponse)
 def events_page(request: Request, kind: str = "", genre: str = "", venue: str = "",
-                when: str = ""):
+                when: str = "", new: str = ""):
     tz = request.app.state.cfg.timezone
     session = request.app.state.session_factory()
     try:
@@ -124,18 +114,20 @@ def events_page(request: Request, kind: str = "", genre: str = "", venue: str = 
         when = when if when in listing.WHEN_FILTERS else ""
 
         # dropdown options follow the chosen kind, so "Movies" doesn't offer "Metal"
-        genres, venues = listing.facet_counts(listing.apply_filters(rows, today, kind=kind))
+        only_new = new == "1"
+        genres, venues = listing.facet_counts(
+            listing.apply_filters(rows, today, kind=kind, new=only_new))
         # a genre/venue picked under another kind would silently match nothing
         if genre not in {g for g, _ in genres}:
             genre = ""
         if venue_id not in {v for v, _, _ in venues}:
             venue_id = None
         shown = listing.apply_filters(rows, today, kind=kind, genre=genre,
-                                      venue=venue_id, when=when)
+                                      venue=venue_id, when=when, new=only_new)
         shown_sections = listing.sections(shown, today)
         ctx = _ctx(request) | {
             "sections": shown_sections, "count": _count(shown_sections),
-            "kind": kind, "genre": genre, "venue": venue_id, "when": when,
+            "kind": kind, "genre": genre, "venue": venue_id, "when": when, "new": only_new,
             "kinds": listing.KIND_FILTERS, "whens": listing.WHEN_FILTERS,
             "genres": genres, "venues": venues,
         }

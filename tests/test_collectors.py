@@ -377,9 +377,10 @@ def test_tm_offsale_before_public_sale_is_coming_soon_not_sold_out():
     # after the public sale opened, offsale does mean gone
     assert _ticket_status(_tm_item("offsale", "2026-09-01T15:00:00Z"), now) == \
         (TicketStatus.sold_out, None)
-    # the 9999 placeholder is not a future sale
+    # no real sale date: Ticketmaster isn't selling it, which isn't "sold out"
     assert _ticket_status(_tm_item("offsale", "9999-12-31T06:00:00Z"), now) == \
-        (TicketStatus.sold_out, None)
+        (TicketStatus.unknown, None)
+    assert _ticket_status(_tm_item("offsale"), now) == (TicketStatus.unknown, None)
 
 
 def test_tm_presale_window_and_vip_packages():
