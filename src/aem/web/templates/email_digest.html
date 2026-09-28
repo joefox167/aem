@@ -23,7 +23,7 @@
     <li style="margin-bottom:6px;">
       {{ category_tag(item) }}{{ title_link(item, 600) }}
       {%- if item.event.attrs.get('format') and item.event.attrs['format'] != 'Standard' %} <span style="color:#8250df;">({{ item.event.attrs['format'] }})</span>{% endif %}
-      <span style="color:#57606a;"> — {{ item.when }}</span>
+      <span style="color:#57606a;"> — {% if item.count > 1 %}{{ item.count }} performances · {% endif %}{{ item.when }}</span>
       {%- if item.event.attrs.get('openers') %}<br><span style="color:#57606a; font-size:13px;">with {{ item.event.attrs['openers'] | join(', ') }}</span>{% endif %}
       {%- if item.on_sale %}<br><span style="color:#1a7f37; font-size:13px;">🎟 on sale {{ item.on_sale }}</span>{% endif %}
       {%- if item.event.ticket_url and item.event.ticket_url != item.event.event_url %} <a href="{{ item.event.ticket_url }}" style="font-size:13px;">tickets</a>{% endif %}
@@ -57,7 +57,7 @@
     <li style="margin-bottom:6px;">
       <strong style="color:#1a7f37;">{{ item.to_status | title }}</strong> —
       {{ category_tag(item) }}{{ title_link(item, 400) }}
-      <span style="color:#57606a;">({{ item.venue }}, {{ item.when }})</span>
+      <span style="color:#57606a;">({{ item.venue }}, {% if item.count > 1 %}{{ item.count }} performances · {% endif %}{{ item.when }})</span>
     </li>
     {% endfor %}
   </ul>
@@ -82,7 +82,7 @@
     {% for item in removed %}
     <li style="margin-bottom:6px;">
       {{ category_tag(item) }}<span style="text-decoration:line-through;">{{ item.event.title }}</span>
-      <span style="color:#57606a;">({{ item.venue }}, was {{ item.when }})</span>
+      <span style="color:#57606a;">({{ item.venue }}, was {% if item.count > 1 %}{{ item.count }} performances · {% endif %}{{ item.when }})</span>
     </li>
     {% endfor %}
   </ul>

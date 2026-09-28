@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from .. import metrics
 from ..config import AppConfig, Settings
-from ..fmt import category, local_stamp, parse_utc, upcoming_sale
+from ..fmt import category, local_day, local_stamp, parse_utc, upcoming_sale
 from ..models import ChangeLog, ChangeType, Event, NotificationSent, Venue, utcnow
 from . import email as email_sender
 
@@ -85,6 +85,43 @@ def _on_sale(event: Event, tz: str) -> str | None:
     return local_stamp(when, tz) if when else None
 
 
+def _date_range(first: datetime | None, last: datetime | None, tz: str) -> str:
+    """"Thu May 20 – Mon May 31, 2027" -- dates only: the times differ per
+    performance and the event page has them."""
+    d1, d2 = local_day(first, tz), local_day(last, tz)
+    if d1 is None or d2 is None:
+        return local_stamp(first, tz, False)
+    if d1 == d2:
+        return f"{d1:%a %b} {d1.day}, {d1.year}"
+    head = f"{d1:%a %b} {d1.day}" + ("" if d1.year == d2.year else f", {d1.year}")
+    return f"{head} \u2013 {d2:%a %b} {d2.day}, {d2.year}"
+
+
+def _group_items(items: list[dict], key, tz: str) -> list[dict]:
+    """Collapse the performances of one show into a single row.
+
+    Rows sharing `key(item)` merge into the earliest performance's row, which
+    gains `count` and a date-range `when`. A show's 16 performances are one
+    announcement; listing them separately buries everything else in the email.
+    """
+    groups: dict = {}
+    for item in sorted(items, key=lambda i: str(i["event"].starts_at or "")):
+        groups.setdefault(key(item), []).append(item)
+    out = []
+    for members in groups.values():
+        first = dict(members[0], count=len(members))
+        if len(members) > 1:
+            first["when"] = _date_range(members[0]["event"].starts_at,
+                                        members[-1]["event"].starts_at, tz)
+        out.append(first)
+    # keep the email's original order: by when each show first appears
+    return sorted(out, key=lambda i: i["change"].id)
+
+
+def _show_key(item: dict) -> tuple:
+    return (item["event"].title.strip().lower(), item["venue"])
+
+
 def build_digest(session: Session, cfg: AppConfig) -> dict:
     """Collect all undigested, non-baseline changes grouped for rendering."""
     changes = session.scalars(
@@ -131,6 +168,16 @@ def build_digest(session: Session, cfg: AppConfig) -> dict:
             updated.append(item)
         elif change.change_type == ChangeType.removed.value:
             removed.append(item)
+
+    tz = cfg.timezone
+    for bucket in (movies_added, concerts_added):
+        for venue_name in bucket:
+            bucket[venue_name] = _group_items(bucket[venue_name], _show_key, tz)
+    # only identical changes merge: one performance selling out on its own still
+    # gets its own row with its own date
+    ticket_changes = _group_items(ticket_changes,
+                                  lambda i: (*_show_key(i), i["to_status"]), tz)
+    removed = _group_items(removed, _show_key, tz)
 
     return {
         "movies_added": movies_added,

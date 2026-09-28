@@ -4,7 +4,7 @@ Austin Entertainment Monitor — daily digest
 {% for venue_name, items in bucket.items() %}
   {{ venue_name }}
 {% for item in items %}
-    * [{{ item.category }}] {{ item.event.title }} — {{ item.when }}
+    * [{{ item.category }}] {{ item.event.title }} — {% if item.count > 1 %}{{ item.count }} performances · {% endif %}{{ item.when }}
 {% if item.on_sale %}
       on sale {{ item.on_sale }}
 {% endif %}
@@ -25,7 +25,7 @@ CONCERTS & LIVE EVENTS ADDED
 {% if ticket_changes %}
 TICKET STATUS
 {% for item in ticket_changes %}
-    * {{ item.to_status | title }} — {{ item.event.title }} ({{ item.venue }}, {{ item.when }})
+    * {{ item.to_status | title }} — {{ item.event.title }} ({{ item.venue }}, {% if item.count > 1 %}{{ item.count }} performances · {% endif %}{{ item.when }})
 {% endfor %}
 {% endif %}
 {% if updated %}
@@ -38,7 +38,7 @@ UPDATED
 {% if removed %}
 REMOVED
 {% for item in removed %}
-    * {{ item.event.title }} ({{ item.venue }}, was {{ item.when }})
+    * {{ item.event.title }} ({{ item.venue }}, was {% if item.count > 1 %}{{ item.count }} performances · {% endif %}{{ item.when }})
 {% endfor %}
 {% endif %}
 {% if minor_updates %}

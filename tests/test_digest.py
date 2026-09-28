@@ -273,3 +273,70 @@ def test_date_only_events_keep_their_date():
     # a real showtime still converts and still shows the time
     real_show = datetime(2026, 10, 10, 1, 0, 0)  # 01:00 UTC
     assert local_stamp(real_show, "America/Chicago") == "Fri Oct 09, 2026 08:00 PM"
+
+
+def _seed_run(session_factory, days=(20, 21, 22), status_change_on=()):
+    """A touring show at one venue: one event + one `added` change per performance,
+    plus a ticket_status change on the performances listed in `status_change_on`."""
+    from datetime import datetime
+    with session_factory() as s:
+        hall = Venue(source="ticketmaster", name="Bass Concert Hall", slug="bass")
+        s.add(hall)
+        s.flush()
+        for d in days:
+            ev = Event(source="ticketmaster", source_key=f"hp{d}", venue_id=hall.id,
+                       kind="live_performance", title="Harry Potter", title_norm="harry potter",
+                       content_hash="h", starts_at=datetime(2027, 5, d, 1, 0),
+                       event_url=f"https://tm.example/hp{d}")
+            s.add(ev)
+            s.flush()
+            s.add(ChangeLog(event_id=ev.id, change_type="added", field_changes={}))
+            if d in status_change_on:
+                s.add(ChangeLog(event_id=ev.id, change_type="ticket_status",
+                                field_changes={"ticket_status": ["on_sale", "sold_out"]}))
+        s.commit()
+
+
+def test_performances_of_one_show_collapse_to_a_range(session_factory):
+    _seed_run(session_factory, days=(20, 21, 31))
+    with session_factory() as s:
+        data = digest.build_digest(s, AppConfig())
+    rows = data["concerts_added"]["Bass Concert Hall"]
+    assert len(rows) == 1
+    assert rows[0]["count"] == 3
+    # 01:00 UTC is the previous evening in Austin
+    assert rows[0]["when"] == "Wed May 19 – Sun May 30, 2027"
+    assert rows[0]["event"].event_url == "https://tm.example/hp20"  # earliest performance
+    assert data["total"] == 3 and len(data["change_ids"]) == 3  # all still stamped
+
+    html = digest.render_digest(data, Settings(), "Testday")
+    assert html.count(">Harry Potter<") == 1
+    assert "3 performances · Wed May 19 – Sun May 30, 2027" in html
+    text = digest.render_digest_text(data, "Testday")
+    assert text.count("Harry Potter") == 1 and "3 performances" in text
+
+
+def test_single_performance_status_change_keeps_its_own_date(session_factory):
+    _seed_run(session_factory, days=(20, 21, 22), status_change_on=(21,))
+    with session_factory() as s:
+        data = digest.build_digest(s, AppConfig())
+    assert len(data["ticket_changes"]) == 1
+    row = data["ticket_changes"][0]
+    assert row["count"] == 1
+    assert row["when"].startswith("Thu May 20, 2027")  # a time, not a range
+
+
+def test_identical_status_changes_across_a_run_merge(session_factory):
+    _seed_run(session_factory, days=(20, 21, 22), status_change_on=(20, 21, 22))
+    with session_factory() as s:
+        data = digest.build_digest(s, AppConfig())
+    assert [(r["count"], r["to_status"]) for r in data["ticket_changes"]] == [(3, "sold out")]
+
+
+def test_date_range_formatting():
+    from datetime import datetime
+    tz = "America/Chicago"
+    assert digest._date_range(datetime(2027, 5, 20), datetime(2027, 5, 20), tz) == \
+        "Thu May 20, 2027"
+    assert digest._date_range(datetime(2026, 12, 30), datetime(2027, 1, 2), tz) == \
+        "Wed Dec 30, 2026 – Sat Jan 2, 2027"
