@@ -2,30 +2,33 @@
 {% block title %}Dashboard{% endblock %}
 {% block content %}
 
+{% if on_sale_soon %}
 <section>
-  <h3>🆕 New Today</h3>
+  <h3>🎟️ Going on sale soon</h3>
+  <ul class="rows">
+    {% for row in on_sale_soon %}{% include "_row.html" %}{% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section>
+  <h3>🆕 New today</h3>
   {% if new_today %}
-  <ul class="plain">
-    {% for item in new_today %}
-      {% with event = item.event, venue = item.venue %}{% include "_event_line.html" %}{% endwith %}
-    {% endfor %}
+  <ul class="rows">
+    {% for row in new_today %}{% include "_row.html" %}{% endfor %}
   </ul>
   {% else %}<p class="muted">Nothing new in the last 24 hours.</p>{% endif %}
 </section>
 
 <section>
-  <h3>📅 Upcoming (next 14 days)</h3>
+  <h3>📅 Next {{ upcoming_days }} days <small class="muted">{{ upcoming_count }} events · <a href="/events">browse all</a></small></h3>
   {% if upcoming %}
-  <ul class="plain">
-    {% for item in upcoming %}
-      {% with event = item.event, venue = item.venue %}{% include "_event_line.html" %}{% endwith %}
-    {% endfor %}
-  </ul>
+    {% with sections = upcoming %}{% include "_sections.html" %}{% endwith %}
   {% else %}<p class="muted">No dated events in the next two weeks.</p>{% endif %}
 </section>
 
 <section>
-  <h3>🔄 Recent Changes (7 days)</h3>
+  <h3>🔄 Recent changes (7 days)</h3>
   {% if recent %}
   <ul class="plain">
     {% for item in recent %}

@@ -1,0 +1,26 @@
+{# one event, compact: date block | title, badges, details | price + tickets #}
+<li class="row">
+  <div class="dateblock">
+    {%- if row.day %}
+    <span class="mon">{{ row.day.strftime('%b') }}</span>
+    <span class="dom">{{ row.day.day }}</span>
+    <span class="dow">{{ row.day.strftime('%a') }}</span>
+    {%- else %}<span class="tba">TBA</span>{% endif %}
+  </div>
+  <div>
+    <a class="title" href="/event/{{ row.event.id }}">{{ row.event.title }}</a>
+    {%- for css, label in row.badges %} <span class="tag {{ css }}">{{ label }}</span>{% endfor %}
+    <div class="meta">
+      {{ row.venue.name if row.venue else '?' }}
+      {%- if row.time %} · {{ row.time }}{% endif %}
+      {%- if row.end_day %} · through {{ row.end_day.strftime('%a %b') }} {{ row.end_day.day }}{% endif %}
+      · {{ row.category }}
+      {%- if row.event.attrs.get('format') and row.event.attrs.format != 'Standard' %} · {{ row.event.attrs.format }}{% endif %}
+    </div>
+    {%- if row.openers %}<div class="meta">with {{ row.openers | join(', ') }}</div>{% endif %}
+  </div>
+  <div class="side">
+    {%- if row.price %}<span class="price">{{ row.price }}</span>{% endif %}
+    {%- if row.event.ticket_url %}<a class="tix outline" role="button" href="{{ row.event.ticket_url }}" target="_blank" rel="noopener">Tickets</a>{% endif %}
+  </div>
+</li>

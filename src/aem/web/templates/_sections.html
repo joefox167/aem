@@ -1,0 +1,7 @@
+{# expects `sections`: [(label, [Row, ...]), ...] #}
+{% for label, rows in sections %}
+<h4 class="section">{{ label }} <small>{{ rows | length }}</small></h4>
+<ul class="rows">
+  {% for row in rows %}{% include "_row.html" %}{% endfor %}
+</ul>
+{% endfor %}

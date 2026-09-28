@@ -25,6 +25,49 @@
     section { margin-bottom: 2.5rem; }
     li.item { margin-bottom:.6rem; list-style:none; }
     ul.plain { padding-left:0; }
+
+    /* compact event rows: date block | title + details | price + tickets */
+    h4.section { margin:1.75rem 0 .25rem; font-size:.8rem; text-transform:uppercase;
+                 letter-spacing:.08em; color:var(--pico-muted-color); }
+    h4.section small { font-weight:400; margin-left:.35rem; }
+    ul.rows { padding:0; margin:0; }
+    li.row { list-style:none; display:grid; grid-template-columns:3.4rem 1fr auto;
+             gap:.2rem 1rem; align-items:center; padding:.65rem 0;
+             border-bottom:1px solid var(--pico-muted-border-color); }
+    .dateblock { text-align:center; line-height:1.15; padding:.3rem 0; border-radius:.5rem;
+                 background:var(--pico-card-sectioning-background-color); }
+    .dateblock .mon, .dateblock .dow { display:block; font-size:.65rem; text-transform:uppercase;
+                 letter-spacing:.06em; color:var(--pico-muted-color); }
+    .dateblock .dom { display:block; font-size:1.3rem; font-weight:700; }
+    .dateblock .tba { display:block; font-size:.8rem; font-weight:600; padding:.45rem 0; }
+    .row .title { font-weight:600; text-decoration:none; margin-right:.3rem; }
+    .row .meta { color:var(--pico-muted-color); font-size:.85rem; }
+    .row .side { display:flex; flex-direction:column; align-items:flex-end; gap:.3rem; }
+    .row .price { font-size:.85rem; font-weight:600; white-space:nowrap; }
+    .row a.tix { padding:.2rem .7rem; font-size:.8rem; margin:0; white-space:nowrap; }
+    .tag { display:inline-block; padding:.05rem .45rem; border-radius:.6rem; font-size:.7rem;
+           font-weight:600; vertical-align:middle; margin-right:.2rem; color:#fff; }
+    .tag.sold-out { background:#cf222e; }
+    .tag.presale { background:#9a6700; }
+    .tag.soon { background:#8250df; }
+    .tag.new { background:#1a7f37; }
+    .tag.removed { background:#57606a; }
+    @media (max-width: 576px) {
+      li.row { grid-template-columns:3rem 1fr; }
+      .row .side { grid-column:2; flex-direction:row; align-items:center; }
+    }
+
+    /* filter bar */
+    .chips { display:flex; flex-wrap:wrap; gap:.4rem; margin-bottom:.75rem; }
+    .chip { position:relative; padding:.3rem .85rem; border-radius:1rem; font-size:.85rem;
+            border:1px solid var(--pico-muted-border-color); cursor:pointer; margin:0; }
+    .chip input { position:absolute; opacity:0; pointer-events:none; }
+    .chip:has(input:checked) { background:var(--pico-primary-background);
+            border-color:var(--pico-primary-background); color:var(--pico-primary-inverse); }
+    .chip:has(input:focus-visible) { outline:2px solid var(--pico-primary); outline-offset:2px; }
+    .filters select { margin-bottom:.5rem; }
+    .count { color:var(--pico-muted-color); font-size:.85rem; }
+    form.htmx-request ~ #event-list { opacity:.5; transition:opacity .15s; }
   </style>
 </head>
 <body>
@@ -33,8 +76,8 @@
     <ul><li><strong><a href="/" class="contrast" style="text-decoration:none">🤠 AEM</a></strong></li></ul>
     <ul>
       <li><a href="/">Dashboard</a></li>
+      <li><a href="/events">Events</a></li>
       <li><a href="/movies">Movies</a></li>
-      <li><a href="/concerts">Concerts</a></li>
       <li><a href="/search">Search</a></li>
     </ul>
   </nav>

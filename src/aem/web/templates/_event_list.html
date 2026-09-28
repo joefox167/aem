@@ -1,0 +1,41 @@
+{# filters + results; htmx swaps this whole block so the dropdowns follow the chosen kind #}
+<div id="browse">
+<form class="filters" action="/events" method="get"
+      hx-get="/events" hx-target="#browse" hx-swap="outerHTML" hx-push-url="true"
+      hx-trigger="change">
+  <div class="chips" role="radiogroup" aria-label="Kind">
+    {% for key, (label, _) in kinds.items() %}
+    <label class="chip"><input type="radio" name="kind" value="{{ key }}"
+      {%- if key == kind %} checked{% endif %}>{{ label }}</label>
+    {% endfor %}
+  </div>
+  <div class="grid">
+    <select name="when" aria-label="When">
+      {% for key, label in whens.items() %}
+      <option value="{{ key }}"{% if key == when %} selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="genre" aria-label="Genre">
+      <option value="">All genres</option>
+      {% for name, n in genres %}
+      <option value="{{ name }}"{% if name == genre %} selected{% endif %}>{{ name }} ({{ n }})</option>
+      {% endfor %}
+    </select>
+    <select name="venue" aria-label="Venue">
+      <option value="">All venues</option>
+      {% for vid, name, n in venues %}
+      <option value="{{ vid }}"{% if vid == venue %} selected{% endif %}>{{ name }} ({{ n }})</option>
+      {% endfor %}
+    </select>
+  </div>
+  <noscript><button type="submit">Apply filters</button></noscript>
+</form>
+
+<p class="count">{{ count }} event{{ '' if count == 1 else 's' }}
+  {%- if kind or genre or venue or when %} · <a href="/events" hx-get="/events" hx-target="#browse" hx-swap="outerHTML" hx-push-url="true">clear filters</a>{% endif %}</p>
+
+<div id="event-list">
+  {% include "_sections.html" %}
+  {% if not sections %}<p class="muted">Nothing matches these filters.</p>{% endif %}
+</div>
+</div>

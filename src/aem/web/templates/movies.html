@@ -6,17 +6,15 @@
 <article>
   <header>
     <strong>{{ group.title }}</strong>
-    {% for entry in group.entries %}
-      <span class="venue-chip">{{ entry.venue.name if entry.venue else '?' }}</span>
+    {% for row in group.rows %}
+      <span class="venue-chip">{{ row.venue.name if row.venue else '?' }}</span>
     {% endfor %}
   </header>
-  <ul class="plain">
-    {% for entry in group.entries %}
-      {% with event = entry.event, venue = entry.venue %}{% include "_event_line.html" %}{% endwith %}
-    {% endfor %}
+  <ul class="rows">
+    {% for row in group.rows %}{% include "_row.html" %}{% endfor %}
   </ul>
 </article>
 {% else %}
-<p class="muted">No movies tracked yet.</p>
+<p class="muted">No movies showing.</p>
 {% endfor %}
 {% endblock %}

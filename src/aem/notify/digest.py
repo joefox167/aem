@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from .. import metrics
 from ..config import AppConfig, Settings
-from ..fmt import local_stamp, parse_utc
+from ..fmt import category, local_stamp, parse_utc, upcoming_sale
 from ..models import ChangeLog, ChangeType, Event, NotificationSent, Venue, utcnow
 from . import email as email_sender
 
@@ -81,29 +81,8 @@ def _change_details(change: ChangeLog, tz: str) -> list[str]:
 def _on_sale(event: Event, tz: str) -> str | None:
     """An upcoming public sale time. One already past is clutter -- ticket_status
     is what reports that tickets are on sale now."""
-    when = parse_utc((event.attrs or {}).get("public_sale_start"))
-    if when is None or when <= utcnow():
-        return None
-    return local_stamp(when, tz)
-
-
-_KIND_LABELS = {
-    "movie": "Movie",
-    "concert": "Concert",
-    "comedy": "Comedy",
-    "live_performance": "Live",
-    "special_event": "Special",
-}
-
-
-def _category(event: Event) -> str:
-    """At-a-glance label: the source's own genre when it gave us one, else the kind."""
-    attrs = event.attrs or {}
-    for key in ("genre", "subgenre", "segment"):
-        value = attrs.get(key)
-        if value and str(value).lower() not in ("undefined", "other", "miscellaneous"):
-            return str(value)
-    return _KIND_LABELS.get(event.kind, event.kind.replace("_", " ").title())
+    when = upcoming_sale(event.attrs, utcnow())
+    return local_stamp(when, tz) if when else None
 
 
 def build_digest(session: Session, cfg: AppConfig) -> dict:
@@ -132,7 +111,7 @@ def build_digest(session: Session, cfg: AppConfig) -> dict:
             "event": event,
             "venue": venue_name,
             "when": local_stamp(event.starts_at, cfg.timezone),
-            "category": _category(event),
+            "category": category(event),
             "on_sale": _on_sale(event, cfg.timezone),
             "change": change,
         }
