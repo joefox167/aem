@@ -33,6 +33,7 @@ def _ctx(request: Request):
     return {
         "request": request,
         "tz": request.app.state.cfg.timezone,
+        "today": local_today(request.app.state.cfg.timezone),
         "fmt": lambda dt, t=True: _fmt_local(dt, request.app.state.cfg.timezone, t),
     }
 

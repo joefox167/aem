@@ -3,6 +3,7 @@ from datetime import date, datetime, timedelta
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from aem.fmt import local_day, local_time, price_label, upcoming_sale
 from aem.models import Event, Venue, utcnow
@@ -431,3 +432,19 @@ def test_filters_fold_behind_a_toggle(client):
     assert '<details class="more-filters">' in html          # closed by default
     html = client.get("/events?when=7d").text
     assert '<details class="more-filters" open>' in html      # an active filter opens it
+
+
+def test_pictures_only_in_highlights_and_on_event_pages(client, session_factory):
+    from aem import watch
+    with session_factory() as s:
+        ev = s.scalar(select(Event).where(Event.title == "Soon Band"))
+        ev.attrs = {**ev.attrs, "image_url": "https://img.example/soon.jpg"}
+        s.commit()
+        watch.add_keyword(s, "Soon Band")
+        eid = ev.id
+    html = client.get("/").text
+    # the watchlist highlight shows it; the weekend/coming-up rows stay text-only
+    assert html.count('src="https://img.example/soon.jpg"') == 1
+    assert 'referrerpolicy="no-referrer"' in html and 'onerror="this.remove()"' in html
+    assert 'src="https://img.example/soon.jpg"' not in client.get("/events").text
+    assert 'class="hero" src="https://img.example/soon.jpg"' in client.get(f"/event/{eid}").text

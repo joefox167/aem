@@ -191,3 +191,18 @@ async def test_missing_dates_keep_the_stored_ones(session_factory, cfg):
     col.batch = [make_event("k1", starts_at=FIXED_START + timedelta(days=1), ends_at=end)]
     await poll_collectors(session_factory, [col], cfg)
     assert len(changes_of(session_factory, "updated")) == 1
+
+
+async def test_new_image_is_saved_without_logging_a_change(session_factory, cfg):
+    """Informational attrs (picture, price) backfill onto existing events silently."""
+    col = FakeCollector()
+    col.batch = [make_event("k1")]
+    await poll_collectors(session_factory, [col], cfg)
+    col.batch = [make_event("k1", attrs={"image_url": "https://img.example/a.jpg",
+                                         "price_min": 20, "price_max": 40})]
+    await poll_collectors(session_factory, [col], cfg)
+    assert changes_of(session_factory, "updated") == []
+    with session_factory() as s:
+        ev = s.scalar(select(Event))
+        assert ev.attrs["image_url"] == "https://img.example/a.jpg"
+        assert ev.attrs["price_max"] == 40

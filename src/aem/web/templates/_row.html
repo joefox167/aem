@@ -1,8 +1,19 @@
 {# one event, compact. The title link is stretched over the whole row (CSS) so
    anywhere taps through to the event; the tickets link sits above it.
-   `hide_date`: the section heading already names the day, so skip the date block. #}
-<li class="row{{ ' nodate' if hide_date }}">
-  {%- if not hide_date %}
+   `hide_date`: the section heading already names the day, so skip the date block.
+   `with_image`: highlight sections show the picture in the date block's place; the
+   date block stays underneath, so a picture that fails to load reveals it. #}
+{%- set pic = with_image and row.image %}
+<li class="row{{ ' nodate' if hide_date and not pic }}{{ ' pic' if pic }}">
+  {%- if pic %}
+  <div class="thumb">
+    <div class="dateblock">
+      {%- if row.day %}<span class="mon">{{ row.day.strftime('%b') }}</span><span class="dom">{{ row.day.day }}</span>
+      {%- else %}<span class="tba">TBA</span>{% endif %}
+    </div>
+    <img src="{{ row.image }}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()">
+  </div>
+  {%- elif not hide_date %}
   <div class="dateblock">
     {%- if row.day %}
     <span class="mon">{{ row.day.strftime('%b') }}</span>
@@ -16,6 +27,7 @@
     <a class="title" href="/event/{{ row.event.id }}">{{ row.event.title }}</a>
     {%- for css, label in row.badges %} <span class="tag {{ css }}">{{ label }}</span>{% endfor %}
     <div class="meta">
+      {%- if pic and row.day %}{{ row.day.strftime('%a %b') }} {{ row.day.day }}{{ ', ' ~ row.day.year if row.day.year != today.year }} · {% endif %}
       {{ row.venue.name if row.venue else '?' }}
       {%- if row.performances > 1 %} · {{ row.performances }} performances{% endif %}
       {%- if row.times %} · {{ row.times }}{% endif %}

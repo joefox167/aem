@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ event.title }}{% endblock %}
 {% block content %}
+{% if row.image %}<img class="hero" src="{{ row.image }}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}
 <h3>{% if row.watched %}<span class="star" title="On your watchlist">★</span> {% endif %}{{ event.title }}
   {%- for css, label in row.badges %} <span class="tag {{ css }}">{{ label }}</span>{% endfor %}
 </h3>

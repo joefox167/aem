@@ -102,6 +102,23 @@ def _parse_store(html: str) -> list[dict]:
     return list(seen.values())
 
 
+POSTER_TARGET_WIDTH = 640
+
+
+def _poster(img) -> str | None:
+    """The srcset candidate nearest POSTER_TARGET_WIDTH, else the plain src."""
+    if img is None:
+        return None
+    candidates = []
+    for part in (img.attributes.get("srcset") or "").split(","):
+        bits = part.strip().split()
+        if len(bits) == 2 and bits[1].endswith("w") and bits[1][:-1].isdigit():
+            candidates.append((abs(int(bits[1][:-1]) - POSTER_TARGET_WIDTH), bits[0]))
+    if candidates:
+        return min(candidates)[1]
+    return img.attributes.get("src") or None
+
+
 def _parse_films_page(html: str) -> list[dict]:
     """Museum listing cards -> [{title, url, theater, date_text}]."""
     tree = HTMLParser(html)
@@ -116,6 +133,7 @@ def _parse_films_page(html: str) -> list[dict]:
         films.append({
             "title": title,
             "url": link.attributes.get("href"),
+            "image": _poster(li.css_first("img.Listing-thumbnail-image")),
             "theater": label.text(strip=True) if label else "",
             "date_text": re.sub(r"\s+", " ", times.text(separator=" ", strip=True)) if times else "",
         })
@@ -158,6 +176,8 @@ class BullockImaxCollector(Collector):
                 if "multisensory" in date_text.lower():
                     fmt = "Multisensory"
             attrs = {"format": fmt, "theater": cat["theater"]}
+            if card and card.get("image"):
+                attrs["image_url"] = card["image"]
             if cat["special"]:
                 attrs["special_presentation"] = cat["special"]
             events.append(RawEvent(

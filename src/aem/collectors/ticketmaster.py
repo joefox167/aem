@@ -177,6 +177,24 @@ def _ticket_status(item: dict, now: datetime) -> tuple[TicketStatus | None, str 
     return TicketStatus.unknown, None
 
 
+IMAGE_TARGET_WIDTH = 640
+
+
+def _pick_image(item: dict) -> str | None:
+    """A real (non-placeholder) 16:9 image near IMAGE_TARGET_WIDTH wide.
+
+    Discovery marks generic category artwork `fallback: true`; ~19% of Austin
+    events only have those, and a stock "concert crowd" says nothing, so they
+    get no picture rather than a misleading one.
+    """
+    real = [i for i in item.get("images") or [] if i.get("url") and not i.get("fallback")]
+    if not real:
+        return None
+    wide = [i for i in real if i.get("ratio") == "16_9"] or real
+    best = min(wide, key=lambda i: abs((i.get("width") or 0) - IMAGE_TARGET_WIDTH))
+    return best["url"]
+
+
 def _classification(item: dict) -> tuple[str, str, str]:
     for cls in item.get("classifications") or []:
         if cls.get("primary") is False:
@@ -232,6 +250,10 @@ def _map_event(item: dict, now: datetime) -> RawEvent | None:
     public_start = ((item.get("sales") or {}).get("public") or {}).get("startDateTime")
     if public_start:
         attrs["public_sale_start"] = public_start
+    image = _pick_image(item)
+    if image:
+        # informational, like price: outside diff.MEANINGFUL_ATTRS
+        attrs["image_url"] = image
     presale_start = _next_presale(item.get("sales") or {}, now)
     if presale_start:
         attrs["presale_start"] = presale_start

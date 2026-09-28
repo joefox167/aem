@@ -6,7 +6,7 @@
 <section>
   <h3>🎟️ Going on sale soon</h3>
   <ul class="rows">
-    {% for row in on_sale_soon %}{% include "_row.html" %}{% endfor %}
+    {% with with_image = true %}{% for row in on_sale_soon %}{% include "_row.html" %}{% endfor %}{% endwith %}
   </ul>
 </section>
 {% endif %}
@@ -16,7 +16,7 @@
   <h3>⭐ Your watchlist <small class="muted">{{ watched_count }} upcoming show{{ 's' if watched_count != 1 }}
     {%- if watched_count > watched_shows | length %} · <a href="/events?watched=1">see all</a>{% endif %}</small></h3>
   <ul class="rows">
-    {% for row in watched_shows %}{% include "_row.html" %}{% endfor %}
+    {% with with_image = true %}{% for row in watched_shows %}{% include "_row.html" %}{% endfor %}{% endwith %}
   </ul>
 </section>
 {% elif not has_watchlist %}
@@ -39,7 +39,7 @@
     {%- if new_count %} · {{ new_count }} show{{ 's' if new_count != 1 }} · <a href="/events?new=1">see all</a>{% endif %}</small></h3>
   {% if new_shows %}
   <ul class="rows">
-    {% for row in new_shows %}{% include "_row.html" %}{% endfor %}
+    {% with with_image = true %}{% for row in new_shows %}{% include "_row.html" %}{% endfor %}{% endwith %}
   </ul>
   {% if new_count > new_shows | length %}<p class="muted"><a href="/events?new=1">+ {{ new_count - new_shows | length }} more</a></p>{% endif %}
   {% else %}<p class="muted">Nothing new in the last two days.</p>{% endif %}

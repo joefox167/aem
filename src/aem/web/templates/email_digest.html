@@ -19,28 +19,39 @@
     {%- if item.category %}<span style="display:inline-block; font-size:11px; font-weight:600; color:#57606a; background:#eaeef2; border-radius:10px; padding:1px 7px; margin-right:6px; text-transform:uppercase; letter-spacing:0.3px;">{{ item.category }}</span>{% endif %}
   {%- endmacro %}
 
+  {# picture + text side by side; a table because mail clients ignore most layout CSS #}
+  {% macro with_picture(item) -%}
+    {%- set img = item.event.attrs.get('image_url') -%}
+    {%- if img -%}
+    <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr>
+      <td style="vertical-align:top; padding:2px 10px 0 0; width:96px;"><img src="{{ img }}" width="96" height="54" alt="" style="display:block; width:96px; height:54px; object-fit:cover; border-radius:4px;"></td>
+      <td style="vertical-align:top;">{{ caller() }}</td>
+    </tr></table>
+    {%- else -%}{{ caller() }}{%- endif -%}
+  {%- endmacro %}
+
   {% macro event_row(item) -%}
-    <li style="margin-bottom:6px;">
+    <li style="margin-bottom:8px;">{% call with_picture(item) %}
       {{ category_tag(item) }}{{ title_link(item, 600) }}
       {%- if item.event.attrs.get('format') and item.event.attrs['format'] != 'Standard' %} <span style="color:#8250df;">({{ item.event.attrs['format'] }})</span>{% endif %}
       <span style="color:#57606a;"> — {% if item.count > 1 %}{{ item.count }} performances · {% endif %}{{ item.when }}</span>
       {%- if item.event.attrs.get('openers') %}<br><span style="color:#57606a; font-size:13px;">with {{ item.event.attrs['openers'] | join(', ') }}</span>{% endif %}
       {%- if item.on_sale %}<br><span style="color:#1a7f37; font-size:13px;">🎟 on sale {{ item.on_sale }}</span>{% endif %}
       {%- if item.event.ticket_url and item.event.ticket_url != item.event.event_url %} <a href="{{ item.event.ticket_url }}" style="font-size:13px;">tickets</a>{% endif %}
-    </li>
+    {% endcall %}</li>
   {%- endmacro %}
 
   {% if watchlist %}
   <h3 style="margin-bottom:4px;">⭐ Watchlist</h3>
   <ul style="margin:0 0 8px; padding-left:20px; list-style:none;">
     {% for item in watchlist %}
-    <li style="margin-bottom:6px;">
+    <li style="margin-bottom:8px;">{% call with_picture(item) %}
       <strong style="color:#9a6700;">{{ item.label }}{% if item.label == 'Tickets' %}: {{ item.to_status | title }}{% endif %}</strong> —
       {{ category_tag(item) }}{{ title_link(item, 600) }}
       <span style="color:#57606a;">({{ item.venue }}, {% if item.count > 1 %}{{ item.count }} performances · {% endif %}{{ item.when }})</span>
       {%- if item.details %}<br><span style="color:#57606a; font-size:13px;">{{ item.details | join('; ') }}</span>{% endif %}
       {%- if item.on_sale %}<br><span style="color:#1a7f37; font-size:13px;">🎟 on sale {{ item.on_sale }}</span>{% endif %}
-    </li>
+    {% endcall %}</li>
     {% endfor %}
   </ul>
   {% endif %}

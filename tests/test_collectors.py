@@ -400,3 +400,34 @@ def test_tm_presale_window_and_vip_packages():
     during = datetime(2026, 9, 30, 16)
     assert _ticket_status(item, during) == (TicketStatus.presale, None)
     assert _next_presale(item["sales"], during) == "2026-10-01T15:00:00Z"
+
+
+# --- pictures ---------------------------------------------------------------
+
+def test_tm_picks_a_real_16_9_image_near_640_wide():
+    from aem.collectors.ticketmaster import _pick_image
+    item = {"images": [
+        {"url": "stock.jpg", "ratio": "16_9", "width": 640, "fallback": True},
+        {"url": "tiny.jpg", "ratio": "16_9", "width": 100},
+        {"url": "good.jpg", "ratio": "16_9", "width": 640},
+        {"url": "huge.jpg", "ratio": "16_9", "width": 2048},
+        {"url": "square.jpg", "ratio": "4_3", "width": 640},
+    ]}
+    assert _pick_image(item) == "good.jpg"
+    # only placeholders -> no picture, rather than a misleading stock photo
+    assert _pick_image({"images": [{"url": "stock.jpg", "fallback": True}]}) is None
+    assert _pick_image({}) is None
+
+
+def test_bullock_poster_from_listing_card():
+    from aem.collectors.bullock_imax import _parse_films_page, _poster
+    films = _parse_films_page(fixture_text("bullock_films.html"))
+    real = [f for f in films if "/films/" in (f["url"] or "")]  # skip the newsletter card
+    assert real and all(f["image"] and f["image"].startswith("https://") for f in real)
+
+    from selectolax.parser import HTMLParser
+    img = HTMLParser('<img class="Listing-thumbnail-image" src="s.jpg" '
+                     'srcset="a.jpg 300w, b.jpg 600w, c.jpg 1200w">').css_first("img")
+    assert _poster(img) == "b.jpg"
+    assert _poster(HTMLParser('<img src="only.jpg">').css_first("img")) == "only.jpg"
+    assert _poster(None) is None

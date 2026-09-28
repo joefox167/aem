@@ -128,6 +128,10 @@ def _upsert_batch(session: Session, collector: Collector, batch: list[RawEvent],
         existing.missing_polls = 0
         existing.status = "active"
         existing.venue_id = venue.id
+        # informational attrs (image, price) change without it being news:
+        # save them, but log nothing
+        if existing.content_hash == new_hash and not changes and existing.attrs != resolved["attrs"]:
+            existing.attrs = resolved["attrs"]
         if existing.content_hash != new_hash or changes:
             old_status = existing.ticket_status
             existing.title = raw.title

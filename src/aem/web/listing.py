@@ -50,6 +50,10 @@ class Row:
     watched: bool = False
 
     @property
+    def image(self) -> str | None:
+        return (self.event.attrs or {}).get("image_url") or None
+
+    @property
     def openers(self) -> list[str]:
         return list((self.event.attrs or {}).get("openers") or [])
 

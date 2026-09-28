@@ -424,3 +424,15 @@ def test_subject_counts_listed_rows_not_raw_changes(session_factory):
         digest.send_digest(s, Settings(), AppConfig())
     subject = send.call_args.args[3]
     assert subject.endswith("(1 update)")
+
+
+def test_added_rows_carry_a_thumbnail_when_there_is_a_picture(session_factory):
+    _seed_run(session_factory, days=(20,))
+    with session_factory() as s:
+        ev = s.scalar(select(Event))
+        ev.attrs = {"image_url": "https://img.example/hp.jpg"}
+        s.commit()
+        data = digest.build_digest(s, AppConfig())
+    html = digest.render_digest(data, Settings(), "Testday")
+    assert '<img src="https://img.example/hp.jpg" width="96"' in html
+    assert "img.example" not in digest.render_digest_text(data, "Testday")
