@@ -136,7 +136,7 @@ def test_filters_by_kind_genre_venue_and_window():
     assert titles(kind="movie") == ["film"]
     assert titles(kind="live") == ["play"]
     assert titles(kind="bogus") == ["rock", "film", "play", "tba"]
-    assert titles(genre="Rock") == ["rock"]
+    assert titles(genre="Rock & Metal") == ["rock"]
     assert titles(venue=2) == ["film"]
     assert titles(when="weekend") == ["rock"]
     assert titles(when="7d") == ["rock", "play"]
@@ -389,3 +389,45 @@ def test_dashboard_caps_sections_and_links_to_the_day(client, session_factory):
     tomorrow = local_today("America/Chicago") + timedelta(days=1)
     assert "See all" in html and ("/events?day=" + tomorrow.isoformat()) in html
     assert "Recent changes" not in html and 'href="/changes"' in html
+
+
+@pytest.mark.parametrize("attrs,kind,label", [
+    ({"genre": "Rock"}, "concert", "Rock & Metal"),
+    ({"genre": "Metal"}, "concert", "Rock & Metal"),
+    ({"genre": "Hip-Hop/Rap"}, "concert", "Hip-Hop & R&B"),
+    ({"segment": "Arts & Theatre", "genre": "Performance Art"}, "live_performance", "Theater"),
+    ({"genre": "Theatre"}, "live_performance", "Theater"),
+    ({"genre": "Religious"}, "concert", "Music"),     # unmapped -> the kind
+    ({}, "concert", "Music"),
+    ({}, "live_performance", "Theater"),
+    ({}, "movie", "Film"),
+])
+def test_categories_collapse_to_one_vocabulary(attrs, kind, label):
+    from aem.fmt import category
+    assert category(_event(kind=kind, attrs=attrs)) == label
+
+
+
+def test_movies_page_splits_screenings_from_long_runs(client, session_factory):
+    now = utcnow()
+    with session_factory() as s:
+        s.add_all([
+            Event(source="t", source_key="m1", venue_id=1, kind="movie", title="Jaws",
+                  title_norm="jaws", content_hash="m", starts_at=now + timedelta(days=3),
+                  first_seen=now - timedelta(days=9)),
+            Event(source="t", source_key="m2", venue_id=1, kind="movie", title="Horse Power",
+                  title_norm="horse power", content_hash="m", starts_at=now - timedelta(days=100),
+                  ends_at=now + timedelta(days=200), first_seen=now - timedelta(days=9)),
+        ])
+        s.commit()
+    html = client.get("/movies").text
+    assert html.index("Screenings") < html.index("Jaws") < html.index("Always showing") \
+        < html.index("Horse Power")
+    assert html.count(">Horse Power<") == 1 or html.count("Horse Power</strong>") == 1
+
+
+def test_filters_fold_behind_a_toggle(client):
+    html = client.get("/events").text
+    assert '<details class="more-filters">' in html          # closed by default
+    html = client.get("/events?when=7d").text
+    assert '<details class="more-filters" open>' in html      # an active filter opens it

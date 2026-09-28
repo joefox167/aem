@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ event.title }}{% endblock %}
 {% block content %}
-<h3>{{ event.title }}
+<h3>{% if row.watched %}<span class="star" title="On your watchlist">★</span> {% endif %}{{ event.title }}
   {%- for css, label in row.badges %} <span class="tag {{ css }}">{{ label }}</span>{% endfor %}
 </h3>
 <p class="muted">
@@ -15,6 +15,17 @@
   {% if event.attrs.get('format') and event.attrs.format != 'Standard' %}Format: {{ event.attrs.format }}<br>{% endif %}
   {% if event.attrs.get('special_presentation') %}Special: {{ event.attrs.special_presentation }}<br>{% endif %}
 </p>
+<div class="watch-buttons">
+  {% for kind, name, existing in watch_options %}
+  <form method="post" action="{{ '/watchlist/remove' if existing else '/watchlist/add' }}">
+    <input type="hidden" name="next" value="/event/{{ event.id }}">
+    {% if existing %}<input type="hidden" name="id" value="{{ existing.id }}">
+    {% elif kind == 'venue' %}<input type="hidden" name="venue" value="{{ event.venue_id }}">
+    {% else %}<input type="hidden" name="keyword" value="{{ name }}">{% endif %}
+    <button type="submit" class="outline small{{ '' if existing else ' secondary' }}">{{ '★ Watching' if existing else '☆ Watch' }} {{ name }}</button>
+  </form>
+  {% endfor %}
+</div>
 <p>
   {% if event.ticket_url %}<a role="button" href="{{ event.ticket_url }}" target="_blank">Get tickets ↗</a>{% endif %}
   {% if event.event_url and event.event_url != event.ticket_url %}<a role="button" class="secondary" href="{{ event.event_url }}" target="_blank">Event page ↗</a>{% endif %}

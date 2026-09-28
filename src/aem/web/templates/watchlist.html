@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Watchlist{% endblock %}
+{% block content %}
+<h3>⭐ Watchlist</h3>
+<p class="muted">Artists, shows and venues you follow. They're starred everywhere, listed
+  first on the dashboard, and get their own section at the top of the daily email.</p>
+
+<form method="post" action="/watchlist/add" class="watch-add" role="group">
+  <input name="keyword" placeholder="Artist, show or word — e.g. McAlpine" aria-label="Keyword" required minlength="2" maxlength="100">
+  <button type="submit">Watch</button>
+</form>
+<form method="post" action="/watchlist/add" class="watch-add" role="group">
+  <select name="venue" aria-label="Venue" required>
+    <option value="">Pick a venue…</option>
+    {% for v in venues %}<option value="{{ v.id }}">{{ v.name }}</option>{% endfor %}
+  </select>
+  <button type="submit" class="secondary">Watch venue</button>
+</form>
+
+{% if entries %}
+<ul class="changes">
+  {% for e in entries %}
+  <li class="watch-entry">
+    <div>
+      <strong>{{ e.watch.label }}</strong>
+      <span class="tag {{ 'chg-changed' if e.watch.kind == 'venue' else 'chg-added' }}">{{ 'Venue' if e.watch.kind == 'venue' else 'Keyword' }}</span>
+      <div class="meta">
+        {%- if e.shows %}<a href="/events?watched=1">{{ e.shows }} upcoming show{{ 's' if e.shows != 1 }}</a>
+        {%- else %}Nothing listed right now — AEM will flag it when it appears{% endif %}
+      </div>
+    </div>
+    <form method="post" action="/watchlist/remove">
+      <input type="hidden" name="id" value="{{ e.watch.id }}">
+      <button type="submit" class="outline secondary small">Remove</button>
+    </form>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="muted">Nothing on your watchlist yet. You can also tap “☆ Watch” on any event page.</p>
+{% endif %}
+{% endblock %}

@@ -2,10 +2,10 @@
 <html>
 <body style="font-family: -apple-system, Segoe UI, Roboto, sans-serif; color:#24292f; max-width:640px; margin:0 auto; padding:16px;">
   <h2 style="border-bottom:2px solid #d0d7de; padding-bottom:8px;">🤠 Austin Entertainment Monitor</h2>
-  <p style="color:#57606a;">Daily digest — {{ date_label }} · {{ total }} change{{ 's' if total != 1 }}</p>
+  <p style="color:#57606a;">Daily digest — {{ date_label }} · {{ listed }} update{{ 's' if listed != 1 }}</p>
 
-  {# the public listing is what a reader can actually open from anywhere; the
-     internal dashboard host only resolves on the LAN, so it is never linked #}
+  {# titles open the public venue/ticket listing; AEM itself (behind Cloudflare
+     Access) is linked once, in the footer #}
   {% macro title_link(item, weight) -%}
     {%- set link = item.event.event_url or item.event.ticket_url -%}
     {%- if link -%}
@@ -29,6 +29,21 @@
       {%- if item.event.ticket_url and item.event.ticket_url != item.event.event_url %} <a href="{{ item.event.ticket_url }}" style="font-size:13px;">tickets</a>{% endif %}
     </li>
   {%- endmacro %}
+
+  {% if watchlist %}
+  <h3 style="margin-bottom:4px;">⭐ Watchlist</h3>
+  <ul style="margin:0 0 8px; padding-left:20px; list-style:none;">
+    {% for item in watchlist %}
+    <li style="margin-bottom:6px;">
+      <strong style="color:#9a6700;">{{ item.label }}{% if item.label == 'Tickets' %}: {{ item.to_status | title }}{% endif %}</strong> —
+      {{ category_tag(item) }}{{ title_link(item, 600) }}
+      <span style="color:#57606a;">({{ item.venue }}, {% if item.count > 1 %}{{ item.count }} performances · {% endif %}{{ item.when }})</span>
+      {%- if item.details %}<br><span style="color:#57606a; font-size:13px;">{{ item.details | join('; ') }}</span>{% endif %}
+      {%- if item.on_sale %}<br><span style="color:#1a7f37; font-size:13px;">🎟 on sale {{ item.on_sale }}</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
 
   {% if movies_added %}
   <h3 style="margin-bottom:4px;">🎬 Movies Added</h3>
@@ -98,6 +113,8 @@
 
   <p style="color:#8c959f; font-size:12px; border-top:1px solid #d0d7de; margin-top:24px; padding-top:8px;">
     AEM · Austin Entertainment Monitor
+    {%- if base_url %} · <a href="{{ base_url }}/" style="color:#0969da;">Open AEM</a>
+    · <a href="{{ base_url }}/changes" style="color:#0969da;">All changes</a>{% endif %}
   </p>
 </body>
 </html>

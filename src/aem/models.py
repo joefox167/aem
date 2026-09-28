@@ -150,3 +150,17 @@ class HttpCache(Base):
     etag: Mapped[str | None] = mapped_column(String(255), nullable=True)
     last_modified: Mapped[str | None] = mapped_column(String(255), nullable=True)
     fetched_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class Watch(Base):
+    """Something to follow: a keyword (artist, show, series) matched against
+    titles and lineups, or a venue. One household, so no per-user rows."""
+
+    __tablename__ = "watches"
+    __table_args__ = (UniqueConstraint("kind", "value"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String(16))  # keyword | venue
+    value: Mapped[str] = mapped_column(String(255))  # lowercased keyword, or venue id
+    label: Mapped[str] = mapped_column(String(255))  # as the person typed / venue name
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

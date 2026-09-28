@@ -74,9 +74,15 @@
       .row .narrow { display:inline; }
       /* the AEM logo already links home, so the phone nav drops "Dashboard" and
          may wrap rather than push the page sideways */
-      nav .nav-home { display:none; }
+      nav .nav-home, nav .nav-label { display:none; }
       nav ul:last-child { flex-wrap:wrap; justify-content:flex-end; }
-      nav ul li { padding-left:.35rem; padding-right:.35rem; }
+      /* Pico spaces nav items through these variables */
+      nav { --pico-nav-element-spacing-horizontal: .3rem;
+            --pico-nav-link-spacing-horizontal: .15rem; }
+    }
+    @media (max-width: 385px) {
+      nav { --pico-nav-element-spacing-horizontal: .2rem;
+            --pico-nav-link-spacing-horizontal: .05rem; font-size:.95rem; }
     }
 
     /* filter bar */
@@ -88,6 +94,17 @@
             border-color:var(--pico-primary-background); color:var(--pico-primary-inverse); }
     .chip:has(input:focus-visible) { outline:2px solid var(--pico-primary); outline-offset:2px; }
     .filters select { margin-bottom:.5rem; }
+    details.more-filters { margin-bottom:.5rem; }
+    details.more-filters > summary { font-size:.9rem; }
+    @media (min-width: 577px) { details.more-filters > summary { display:none; } }
+    h4.group { margin:1.5rem 0 .25rem; }
+    .star { color:#d4a72c; }
+    form.watch-add { margin-bottom:.75rem; }
+    li.watch-entry { display:flex; justify-content:space-between; align-items:center; gap:1rem; }
+    li.watch-entry form { margin:0; }
+    button.small, a.small { padding:.2rem .7rem; font-size:.8rem; margin:0; width:auto; }
+    .watch-buttons { display:flex; flex-wrap:wrap; gap:.4rem; margin:.5rem 0 1rem; }
+    .watch-buttons form { margin:0; }
     .count { color:var(--pico-muted-color); font-size:.85rem; }
     form.htmx-request ~ #event-list { opacity:.5; transition:opacity .15s; }
   </style>
@@ -101,11 +118,22 @@
       <li><a href="/events">Events</a></li>
       <li><a href="/movies">Movies</a></li>
       <li><a href="/changes">Changes</a></li>
+      <li><a href="/watchlist" aria-label="Watchlist">★<span class="nav-label"> Watchlist</span></a></li>
       <li><a href="/search">Search</a></li>
     </ul>
   </nav>
   {% block content %}{% endblock %}
   <footer class="muted">Austin Entertainment Monitor · times shown in {{ tz }}</footer>
 </main>
+<script>
+  // wider screens show the filter dropdowns without the "Filters" toggle;
+  // re-run after htmx swaps the filter block in
+  function openFilters() {
+    if (window.matchMedia("(min-width: 577px)").matches)
+      document.querySelectorAll("details.more-filters").forEach(d => d.open = true);
+  }
+  openFilters();
+  document.addEventListener("htmx:afterSwap", openFilters);
+</script>
 </body>
 </html>

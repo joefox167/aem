@@ -41,14 +41,16 @@ def pretty(value: object) -> str:
     return str(value).replace("_", " ")
 
 
-def describe(field: str, old: object, new: object, tz: str) -> str:
+def describe(field: str, old: object, new: object, tz: str,
+             this_year: int | None = None) -> str:
     verb = FIELD_VERBS.get(field, field.replace("_", " "))
     if field == "starts_at":
-        return f"{verb} {local_stamp(parse_utc(old), tz)} \u2192 {local_stamp(parse_utc(new), tz)}"
+        return (f"{verb} {local_stamp(parse_utc(old), tz, this_year=this_year)} \u2192 "
+                f"{local_stamp(parse_utc(new), tz, this_year=this_year)}")
     return f"{verb} {pretty(old)} \u2192 {pretty(new)}"
 
 
-def change_details(change: ChangeLog, tz: str) -> list[str]:
+def change_details(change: ChangeLog, tz: str, this_year: int | None = None) -> list[str]:
     """One "old -> new" phrase per meaningful field. field_changes already holds
     both sides, so the digest can say what moved instead of just naming it."""
     details = []
@@ -60,23 +62,26 @@ def change_details(change: ChangeLog, tz: str) -> list[str]:
             # a date vanishing or reappearing is a source hiccup, not a reschedule;
             # ingest now keeps the stored date, and older rows like this are hidden
             continue
-        details.append(describe(field, old, new, tz))
+        details.append(describe(field, old, new, tz, this_year))
     return details
 
 
-def date_range(first: datetime | None, last: datetime | None, tz: str) -> str:
+def date_range(first: datetime | None, last: datetime | None, tz: str,
+               this_year: int | None = None) -> str:
     """"Thu May 20 – Mon May 31, 2027" -- dates only: the times differ per
-    performance and the event page has them."""
+    performance and the event page has them. The year is left off when the
+    whole range falls in `this_year`."""
     d1, d2 = local_day(first, tz), local_day(last, tz)
     if d1 is None or d2 is None:
-        return local_stamp(first, tz, False)
+        return local_stamp(first, tz, False, this_year)
+    tail = "" if d2.year == this_year and d1.year == this_year else f", {d2.year}"
     if d1 == d2:
-        return f"{d1:%a %b} {d1.day}, {d1.year}"
+        return f"{d1:%a %b} {d1.day}{tail}"
     head = f"{d1:%a %b} {d1.day}" + ("" if d1.year == d2.year else f", {d1.year}")
-    return f"{head} \u2013 {d2:%a %b} {d2.day}, {d2.year}"
+    return f"{head} \u2013 {d2:%a %b} {d2.day}{tail}"
 
 
-def group_items(items: list[dict], key, tz: str) -> list[dict]:
+def group_items(items: list[dict], key, tz: str, this_year: int | None = None) -> list[dict]:
     """Collapse the performances of one show into a single row.
 
     Rows sharing `key(item)` merge into the earliest performance's row, which
@@ -91,7 +96,7 @@ def group_items(items: list[dict], key, tz: str) -> list[dict]:
         first = dict(members[0], count=len(members))
         if len(members) > 1:
             first["when"] = date_range(members[0]["event"].starts_at,
-                                        members[-1]["event"].starts_at, tz)
+                                       members[-1]["event"].starts_at, tz, this_year)
         out.append(first)
     # keep the email's original order: by when each show first appears
     return sorted(out, key=lambda i: i["change"].id)
@@ -124,7 +129,7 @@ _LABELS = {
 }
 
 
-def describe_change(change: ChangeLog, tz: str) -> tuple[str, str]:
+def describe_change(change: ChangeLog, tz: str, this_year: int | None = None) -> tuple[str, str]:
     """(label, plain-English detail) for one change, e.g. ("Changed", "moved
     Sat Oct 03 → Sun Oct 04") -- never raw field names or ISO timestamps."""
     label = _LABELS.get(change.change_type, change.change_type.replace("_", " ").title())
@@ -132,7 +137,7 @@ def describe_change(change: ChangeLog, tz: str) -> tuple[str, str]:
         pair = (change.field_changes or {}).get("ticket_status") or [None, None]
         return label, pretty(pair[-1]).capitalize()
     if change.change_type == ChangeType.updated.value:
-        return label, "; ".join(change_details(change, tz)) or "minor update"
+        return label, "; ".join(change_details(change, tz, this_year)) or "minor update"
     if change.change_type == ChangeType.added.value:
         return label, "First listed"
     if change.change_type == ChangeType.removed.value:
@@ -152,9 +157,10 @@ def feed(session, changes: list[ChangeLog], tz: str, today) -> list[tuple[str, l
         if event is None:
             continue
         venue = session.get(Venue, event.venue_id)
-        label, detail = describe_change(change, tz)
+        label, detail = describe_change(change, tz, today.year)
         item = {"event": event, "venue": venue.name if venue else "?",
-                "when": local_stamp(event.starts_at, tz), "category": category(event),
+                "when": local_stamp(event.starts_at, tz, this_year=today.year),
+                "category": category(event),
                 "change": change, "label": label, "detail": detail,
                 "to_status": detail if label == "Tickets" else None}
         # detected_at is always an instant, never a bare date, so convert it outright
@@ -170,9 +176,10 @@ def feed(session, changes: list[ChangeLog], tz: str, today) -> list[tuple[str, l
             if label == "Changed":
                 entries += [dict(i, count=1) for i in of_kind]  # details are per performance
             elif label == "Tickets":
-                entries += group_items(of_kind, lambda i: (*show_key(i), i["detail"]), tz)
+                entries += group_items(of_kind, lambda i: (*show_key(i), i["detail"]), tz,
+                                       today.year)
             else:
-                entries += group_items(of_kind, show_key, tz)
+                entries += group_items(of_kind, show_key, tz, today.year)
         if day == today:
             title = "Today"
         elif day == today - timedelta(days=1):

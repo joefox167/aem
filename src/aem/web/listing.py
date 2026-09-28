@@ -47,6 +47,7 @@ class Row:
     badges: list[tuple[str, str]] = field(default_factory=list)
     extra_times: list[str] = field(default_factory=list)
     performances: int = 1
+    watched: bool = False
 
     @property
     def openers(self) -> list[str]:
@@ -261,11 +262,12 @@ def is_new(row: Row) -> bool:
 
 def apply_filters(rows: list[Row], today: date, *, kind: str = "", genre: str = "",
                   venue: int | None = None, when: str = "", new: bool = False,
-                  day: date | None = None) -> list[Row]:
+                  day: date | None = None, watched: bool = False) -> list[Row]:
     kinds = KIND_FILTERS.get(kind, KIND_FILTERS[""])[1]
     return [
         r for r in rows
         if (not new or is_new(r))
+        and (not watched or r.watched)
         and (day is None or r.day == day)
         and (kinds is None or r.event.kind in kinds)
         and (not genre or r.category == genre)

@@ -1,5 +1,5 @@
 Austin Entertainment Monitor — daily digest
-{{ date_label }} · {{ total }} change{{ 's' if total != 1 }}
+{{ date_label }} · {{ listed }} update{{ 's' if listed != 1 }}
 {% macro rows(bucket) %}
 {% for venue_name, items in bucket.items() %}
   {{ venue_name }}
@@ -14,6 +14,15 @@ Austin Entertainment Monitor — daily digest
 {% endfor %}
 {% endfor %}
 {% endmacro %}
+{% if watchlist %}
+WATCHLIST
+{% for item in watchlist %}
+    * {{ item.label }}{% if item.label == 'Tickets' %}: {{ item.to_status | title }}{% endif %} — {{ item.event.title }} ({{ item.venue }}, {% if item.count > 1 %}{{ item.count }} performances · {% endif %}{{ item.when }})
+{% if item.details %}
+      {{ item.details | join('; ') }}
+{% endif %}
+{% endfor %}
+{% endif %}
 {% if movies_added %}
 MOVIES ADDED
 {{ rows(movies_added) }}
@@ -46,4 +55,9 @@ REMOVED
 {% endif %}
 {% if total == 0 %}
 No changes since the last digest.
+{% endif %}
+{% if base_url %}
+
+Open AEM: {{ base_url }}/
+All changes: {{ base_url }}/changes
 {% endif %}

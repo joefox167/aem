@@ -53,15 +53,16 @@ def test_build_and_render_digest(session_factory):
     assert "(IMAX)" in html
     assert "John Mulaney" in html
     assert "On Sale" in html or "on sale" in html.lower()
-    # titles link to the public listing, never to the LAN-only dashboard host
-    assert "home.arpa" not in html
+    # event titles link to the public listing, never into AEM; AEM is only the footer
+    assert "aem.home.arpa/event/" not in html
+    assert 'href="https://aem.home.arpa/">Open AEM' in html.replace(' style="color:#0969da;"', "")
     assert "https://www.thestoryoftexas.com/imax/the-odyssey" in html
     assert "https://acl-live.com/events/john-mulaney" in html
     # a distinct ticket_url still earns its own secondary link
     assert "https://www.ticketmaster.com/event/john-mulaney" in html
     # category badges: source genre wins, event kind is the fallback
     assert ">Comedy<" in html
-    assert ">Movie<" in html
+    assert ">Film<" in html
 
 
 def test_event_without_public_url_renders_unlinked(session_factory):
@@ -80,10 +81,10 @@ def test_event_without_public_url_renders_unlinked(session_factory):
     cfg = AppConfig()
     with session_factory() as s:
         data = digest.build_digest(s, cfg)
-    html = digest.render_digest(data, Settings(), "Testday")
+    html = digest.render_digest(data, Settings(base_url=""), "Testday")
     assert "Mystery Show" in html
     assert "<a href" not in html  # no listing URL, so no broken link
-    assert ">Live<" in html
+    assert ">Theater<" in html
 
 
 def test_send_digest_stamps_and_dedupes(session_factory):
@@ -190,7 +191,9 @@ def test_updated_rows_say_what_changed(session_factory):
     assert data["minor_updates"] == 1
     details = "; ".join(data["updated"][0]["details"])
     # naive-UTC stored values render in local time, both sides of the move
-    assert "moved Fri Oct 09, 2026 08:00 PM → Sat Oct 17, 2026 09:00 PM" in details
+    # no leading zeros; the year only when it isn't this year, so match around it
+    assert details.startswith("moved Fri Oct 9") and "8:00 PM → Sat Oct 17" in details
+    assert details.split(";")[0].endswith("9:00 PM")
     assert "tickets unknown → on sale" in details
     assert "ticket_url" not in details        # noise filtered out of a kept row
 
@@ -273,7 +276,10 @@ def test_date_only_events_keep_their_date():
 
     # a real showtime still converts and still shows the time
     real_show = datetime(2026, 10, 10, 1, 0, 0)  # 01:00 UTC
-    assert local_stamp(real_show, "America/Chicago") == "Fri Oct 09, 2026 08:00 PM"
+    assert local_stamp(real_show, "America/Chicago") == "Fri Oct 9, 2026, 8:00 PM"
+    # in an email about this year, the year is noise
+    assert local_stamp(real_show, "America/Chicago", this_year=2026) == "Fri Oct 9, 8:00 PM"
+    assert local_stamp(real_show, "America/Chicago", this_year=2025) == "Fri Oct 9, 2026, 8:00 PM"
 
 
 def _seed_run(session_factory, days=(20, 21, 22), status_change_on=()):
@@ -378,7 +384,7 @@ def test_describe_change_is_plain_english():
     label, detail = changes.describe_change(c, "America/Chicago")
     assert label == "Changed"
     assert "starts_at" not in detail and "T01:00" not in detail
-    assert detail.startswith("moved Fri Oct 02, 2026")
+    assert detail.startswith("moved Fri Oct 2")
 
 
 
@@ -391,3 +397,30 @@ def test_date_flicker_to_and_from_empty_is_not_news():
     moved = ChangeLog(change_type="updated", detected_at=datetime(2026, 9, 14),
                       field_changes={"starts_at": ["2026-10-03T01:00:00", "2026-10-04T01:00:00"]})
     assert changes.is_news(moved)
+
+
+
+def test_all_housekeeping_day_sends_nothing_but_stamps(session_factory):
+    _seed_run(session_factory, days=(20,))
+    with session_factory() as s:
+        # only a lost ticket status, and the added change already went out
+        for c in s.scalars(select(ChangeLog)):
+            c.digested_at = c.detected_at
+        ev = s.scalar(select(Event))
+        s.add(ChangeLog(event_id=ev.id, change_type="ticket_status",
+                        field_changes={"ticket_status": ["on_sale", "unknown"]}))
+        s.commit()
+    with session_factory() as s, patch.object(email_sender, "send_html") as send:
+        result = digest.send_digest(s, Settings(), AppConfig())
+        assert result == {"sent": False, "reason": "nothing worth listing"}
+        send.assert_not_called()
+        assert s.scalar(select(ChangeLog).where(ChangeLog.digested_at.is_(None))) is None
+
+
+def test_subject_counts_listed_rows_not_raw_changes(session_factory):
+    _seed_run(session_factory, days=(20, 21, 22))
+    with session_factory() as s, patch.object(email_sender, "send_html",
+                                              return_value=True) as send:
+        digest.send_digest(s, Settings(), AppConfig())
+    subject = send.call_args.args[3]
+    assert subject.endswith("(1 update)")

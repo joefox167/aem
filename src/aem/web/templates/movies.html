@@ -2,19 +2,25 @@
 {% block title %}Movies{% endblock %}
 {% block content %}
 <h3>🎬 Movies</h3>
-{% for group in groups %}
-<article>
-  <header>
-    <strong>{{ group.title }}</strong>
-    {% for row in group.rows %}
-      <span class="venue-chip">{{ row.venue.name if row.venue else '?' }}</span>
-    {% endfor %}
-  </header>
-  <ul class="rows">
-    {% for row in group.rows %}{% include "_row.html" %}{% endfor %}
-  </ul>
-</article>
-{% else %}
-<p class="muted">No movies showing.</p>
-{% endfor %}
+
+<h4 class="group">Screenings</h4>
+{% if sections %}
+  {% include "_sections.html" %}
+{% else %}<p class="muted">No dated screenings coming up.</p>{% endif %}
+
+{% if films %}
+<h4 class="group">Always showing <small class="muted">{{ films | length }}</small></h4>
+<ul class="changes">
+  {% for film in films %}
+  <li>
+    <a href="/event/{{ film.row.event.id }}"><strong>{{ film.row.event.title }}</strong></a>
+    <div class="meta">
+      {{ film.venues | unique | join(' · ') }} · through {{ film.until.strftime('%a %b') }} {{ film.until.day }}
+      {%- if film.row.event.attrs.get('format') and film.row.event.attrs.format != 'Standard' %} · {{ film.row.event.attrs.format }}{% endif %}
+      {%- if film.row.event.ticket_url %} · <a href="{{ film.row.event.ticket_url }}" target="_blank" rel="noopener">Tickets ↗</a>{% endif %}
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
 {% endblock %}

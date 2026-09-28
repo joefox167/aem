@@ -9,6 +9,10 @@
       {%- if key == kind %} checked{% endif %}>{{ label }}</label>
     {% endfor %}
   </div>
+  {# phones: the dropdowns fold behind "Filters" so events start on the first screen;
+     wider screens (and any active dropdown filter) open it -- see base.html #}
+  <details class="more-filters"{% if genre or venue or when %} open{% endif %}>
+  <summary>Filters{% if genre or venue or when %} · {{ [genre, when and whens[when], venue and 'venue'] | select | list | length }} on{% endif %}</summary>
   <div class="grid">
     <select name="when" aria-label="When">
       {% for key, label in whens.items() %}
@@ -28,9 +32,13 @@
       {% endfor %}
     </select>
   </div>
+  </details>
   {% if day %}<input type="hidden" name="day" value="{{ day.isoformat() }}">
   <p>Only {{ day.strftime('%A, %b') }} {{ day.day }} ·
     <a href="/events" hx-get="/events" hx-target="#browse" hx-swap="outerHTML" hx-push-url="true">show every day</a></p>{% endif %}
+  {% if watched %}<input type="hidden" name="watched" value="1">
+  <p><span class="star">★</span> Only your watchlist ·
+    <a href="/events" hx-get="/events" hx-target="#browse" hx-swap="outerHTML" hx-push-url="true">show everything</a></p>{% endif %}
   {% if new %}<input type="hidden" name="new" value="1">
   <p><span class="tag new">New</span> Only events first seen in the last 48 hours ·
     <a href="/events" hx-get="/events" hx-target="#browse" hx-swap="outerHTML" hx-push-url="true">show everything</a></p>{% endif %}
@@ -38,7 +46,7 @@
 </form>
 
 <p class="count">{{ count }} event{{ '' if count == 1 else 's' }}
-  {%- if kind or genre or venue or when or new or day %} · <a href="/events" hx-get="/events" hx-target="#browse" hx-swap="outerHTML" hx-push-url="true">clear filters</a>{% endif %}</p>
+  {%- if kind or genre or venue or when or new or day or watched %} · <a href="/events" hx-get="/events" hx-target="#browse" hx-swap="outerHTML" hx-push-url="true">clear filters</a>{% endif %}</p>
 
 <div id="event-list">
   {% include "_event_page.html" %}

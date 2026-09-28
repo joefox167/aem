@@ -2,16 +2,16 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import parse_qs, urlencode
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 
-from .. import changes
+from .. import changes, watch
 from ..fmt import local_stamp, local_today
-from ..models import ChangeLog, ChangeType, Event, TicketStatus, Venue, utcnow
+from ..models import ChangeLog, ChangeType, Event, TicketStatus, Venue, Watch, utcnow
 from . import listing
 
 router = APIRouter()
@@ -38,7 +38,11 @@ def _ctx(request: Request):
 
 
 def _rows(session, events, tz: str, now) -> list[listing.Row]:
-    return [listing.build_row(e, session.get(Venue, e.venue_id), tz, now) for e in events]
+    wl = watch.load(session)
+    rows = [listing.build_row(e, session.get(Venue, e.venue_id), tz, now) for e in events]
+    for row in rows:
+        row.watched = wl.matches(row.event)
+    return rows
 
 
 def _count(sections) -> int:
@@ -73,6 +77,7 @@ def index(request: Request):
             key=lambda r: (r.sale_at is None, str(r.sale_at or ""), listing.sort_key(r)),
         )[:20]
 
+        watched_shows = listing.group_shows([r for r in rows if r.watched and r.day])
         # one row per show: a touring musical's 16 new performances are one announcement
         new_shows = listing.group_shows([r for r in rows if listing.is_new(r)])
 
@@ -80,6 +85,8 @@ def index(request: Request):
         return templates.TemplateResponse(request, "index.html", _ctx(request) | {
             "new_shows": new_shows[:NEW_SHOWN], "new_count": len(new_shows),
             "on_sale_soon": on_sale_soon,
+            "watched_shows": watched_shows[:DASHBOARD_PER_SECTION],
+            "watched_count": len(watched_shows), "has_watchlist": bool(watch.load(session)),
             "upcoming": upcoming_sections, "upcoming_count": _count(upcoming_sections),
             "upcoming_days": UPCOMING_DAYS, "per_section": DASHBOARD_PER_SECTION,
             "weekend": weekend, "weekend_start": weekend_start, "weekend_end": weekend_end,
@@ -91,7 +98,8 @@ def index(request: Request):
 
 @router.get("/events", response_class=HTMLResponse)
 def events_page(request: Request, kind: str = "", genre: str = "", venue: str = "",
-                when: str = "", new: str = "", day: str = "", page: int = 1):
+                when: str = "", new: str = "", day: str = "", page: int = 1,
+                watched: str = ""):
     tz = request.app.state.cfg.timezone
     session = request.app.state.session_factory()
     try:
@@ -108,26 +116,29 @@ def events_page(request: Request, kind: str = "", genre: str = "", venue: str = 
 
         # dropdown options follow the chosen kind, so "Movies" doesn't offer "Metal"
         only_new = new == "1"
+        only_watched = watched == "1"
         genres, venues = listing.facet_counts(
-            listing.apply_filters(rows, today, kind=kind, new=only_new))
+            listing.apply_filters(rows, today, kind=kind, new=only_new, watched=only_watched))
         # a genre/venue picked under another kind would silently match nothing
         if genre not in {g for g, _ in genres}:
             genre = ""
         if venue_id not in {v for v, _, _ in venues}:
             venue_id = None
         shown = listing.apply_filters(rows, today, kind=kind, genre=genre,
-                                      venue=venue_id, when=when, new=only_new, day=on_day)
+                                      venue=venue_id, when=when, new=only_new, day=on_day,
+                                      watched=only_watched)
         all_sections = listing.sections(shown, today)
         page = max(page, 1)
         page_sections, continued, has_more = listing.paginate(all_sections, page)
         params = {k: v for k, v in {"kind": kind, "genre": genre, "venue": venue_id or "",
                                     "when": when, "new": "1" if only_new else "",
-                                    "day": on_day.isoformat() if on_day else ""}.items() if v}
+                                    "day": on_day.isoformat() if on_day else "",
+                                    "watched": "1" if only_watched else ""}.items() if v}
         ctx = _ctx(request) | {
             "sections": page_sections, "count": _count(all_sections),
             "continued": continued, "next_page": page + 1 if has_more else None,
             "next_url": "/events?" + urlencode(params | {"page": page + 1}),
-            "day": on_day,
+            "day": on_day, "watched": only_watched,
             "kind": kind, "genre": genre, "venue": venue_id, "when": when, "new": only_new,
             "kinds": listing.KIND_FILTERS, "whens": listing.WHEN_FILTERS,
             "genres": genres, "venues": venues,
@@ -161,35 +172,101 @@ def changes_page(request: Request):
         session.close()
 
 
+@router.get("/watchlist", response_class=HTMLResponse)
+def watchlist_page(request: Request):
+    tz = request.app.state.cfg.timezone
+    session = request.app.state.session_factory()
+    try:
+        now = utcnow()
+        today = local_today(tz)
+        rows = _current_rows(session, tz, now, today)
+        entries = []
+        for w in session.scalars(select(Watch).order_by(Watch.kind, Watch.label)):
+            one = watch.Watchlist(keywords=(w.value,)) if w.kind == "keyword" else \
+                watch.Watchlist(venue_ids=frozenset({int(w.value)}))
+            shows = listing.group_shows([r for r in rows if r.day and one.matches(r.event)])
+            entries.append({"watch": w, "shows": len(shows)})
+        venues = session.scalars(select(Venue).order_by(Venue.name)).all()
+        return templates.TemplateResponse(request, "watchlist.html", _ctx(request) | {
+            "entries": entries, "venues": venues,
+        })
+    finally:
+        session.close()
+
+
+async def _form(request: Request) -> dict[str, str]:
+    """application/x-www-form-urlencoded fields, without pulling in
+    python-multipart for two tiny forms."""
+    body = (await request.body()).decode("utf-8", errors="replace")
+    return {k: v[0] for k, v in parse_qs(body).items()}
+
+
+def _back(target: str) -> RedirectResponse:
+    # only ever redirect within AEM
+    if not target.startswith("/") or target.startswith("//"):
+        target = "/watchlist"
+    return RedirectResponse(target, status_code=303)
+
+
+@router.post("/watchlist/add")
+async def watchlist_add(request: Request):
+    form = await _form(request)
+    session = request.app.state.session_factory()
+    try:
+        if form.get("venue", "").isdigit():
+            watch.add_venue(session, int(form["venue"]))
+        elif form.get("keyword"):
+            watch.add_keyword(session, form["keyword"])
+    finally:
+        session.close()
+    return _back(form.get("next", "/watchlist"))
+
+
+@router.post("/watchlist/remove")
+async def watchlist_remove(request: Request):
+    form = await _form(request)
+    session = request.app.state.session_factory()
+    try:
+        if form.get("id", "").isdigit():
+            watch.remove(session, int(form["id"]))
+    finally:
+        session.close()
+    return _back(form.get("next", "/watchlist"))
+
+
 @router.get("/concerts")
 def concerts():
     return RedirectResponse("/events?kind=concert", status_code=301)
 
 
-def _grouped_by_canonical(session, kind_filter, tz: str):
-    now = utcnow()
-    today = local_today(tz)
-    events = session.scalars(select(Event).where(Event.status == "active", kind_filter)).all()
-    rows = listing.merge_performances(
-        [r for r in _rows(session, events, tz, now) if listing.is_current(r, today, now)])
-    groups: dict = {}
-    order = []
-    for row in rows:
-        key = row.event.canonical_id or f"e{row.event.id}"
-        if key not in groups:
-            groups[key] = {"title": row.event.title, "rows": []}
-            order.append(key)
-        groups[key]["rows"].append(row)
-    return [groups[k] for k in order]
+LONG_RUN_DAYS = 14
 
 
 @router.get("/movies", response_class=HTMLResponse)
 def movies(request: Request):
+    """Dated screenings first, date-grouped like Events; films on long runs
+    (a museum's year-round IMAX catalogue) in one compact list after them."""
+    tz = request.app.state.cfg.timezone
     session = request.app.state.session_factory()
     try:
-        groups = _grouped_by_canonical(session, Event.kind == "movie",
-                                       request.app.state.cfg.timezone)
-        return templates.TemplateResponse(request, "movies.html", _ctx(request) | {"groups": groups})
+        now = utcnow()
+        today = local_today(tz)
+        events = session.scalars(select(Event).where(Event.status == "active",
+                                                     Event.kind == "movie")).all()
+        rows = [r for r in _rows(session, events, tz, now) if listing.is_current(r, today, now)]
+        long_runs = [r for r in rows if r.end_day and r.day
+                     and (r.end_day - r.day).days > LONG_RUN_DAYS]
+        screenings = [r for r in rows if r not in long_runs]
+
+        films: dict = {}
+        for r in sorted(long_runs, key=lambda r: r.event.title.lower()):
+            film = films.setdefault(r.event.canonical_id or r.event.title.strip().lower(),
+                                    {"row": r, "venues": [], "until": r.end_day})
+            film["venues"].append(r.venue.name if r.venue else "?")
+            film["until"] = max(film["until"], r.end_day)
+        return templates.TemplateResponse(request, "movies.html", _ctx(request) | {
+            "sections": listing.sections(screenings, today), "films": list(films.values()),
+        })
     finally:
         session.close()
 
@@ -218,8 +295,16 @@ def event_page(event_id: int, request: Request):
             siblings = sorted(_rows(session, session.scalars(
                 select(Event).where(Event.canonical_id == event.canonical_id,
                                     Event.id != event.id)), tz, now), key=listing.sort_key)
+        row = listing.build_row(event, venue, tz, now)
+        wl = watch.load(session)
+        row.watched = wl.matches(event)
+        existing = {(w.kind, w.value): w for w in session.scalars(select(Watch))}
+        names = list((event.attrs or {}).get("performers") or []) or [event.title]
+        watch_options = [("keyword", n, existing.get(("keyword", n.lower()))) for n in names[:4]]
+        if venue is not None:
+            watch_options.append(("venue", venue.name, existing.get(("venue", str(venue.id)))))
         return templates.TemplateResponse(request, "event.html", _ctx(request) | {
-            "event": event, "venue": venue, "row": listing.build_row(event, venue, tz, now),
+            "event": event, "venue": venue, "row": row, "watch_options": watch_options,
             "siblings": siblings,
             "history": [(c, *changes.describe_change(c, tz)) for c in reversed(event.changes)
                         if c.change_type != ChangeType.baseline.value and changes.is_news(c)],

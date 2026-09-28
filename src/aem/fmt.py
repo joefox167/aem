@@ -10,8 +10,12 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 
-def local_stamp(dt: datetime | None, tz_name: str, with_time: bool = True) -> str:
-    """Format a naive-UTC datetime in local time.
+def local_stamp(dt: datetime | None, tz_name: str, with_time: bool = True,
+                this_year: int | None = None) -> str:
+    """Format a naive-UTC datetime in local time: "Fri Oct 2, 2026, 6:00 PM".
+
+    With `this_year`, a date in that year drops the year ("Fri Oct 2, 6:00 PM"):
+    in an email about this season, repeating 2026 on every line is noise.
 
     Sources that publish a date with no showtime -- an ACL RSS `startdate`, a
     Bullock film run, a Paramount performance date -- store UTC midnight. Such a
@@ -20,10 +24,18 @@ def local_stamp(dt: datetime | None, tz_name: str, with_time: bool = True) -> st
     """
     if dt is None:
         return "TBA"
+    time = None
     if (dt.hour, dt.minute, dt.second) == (0, 0, 0):
-        return dt.strftime("%a %b %d, %Y")
-    local = dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo(tz_name))
-    return local.strftime("%a %b %d, %Y" + (" %I:%M %p" if with_time else ""))
+        day = dt.date()
+    else:
+        local = dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo(tz_name))
+        day = local.date()
+        if with_time:
+            time = local.strftime("%I:%M %p").lstrip("0")
+    out = f"{day:%a %b} {day.day}"
+    if day.year != this_year:
+        out += f", {day.year}"
+    return out + (f", {time}" if time else "")
 
 
 def parse_utc(value: object) -> datetime | None:
@@ -64,21 +76,44 @@ def local_time(dt: datetime | None, tz_name: str) -> str | None:
 
 
 KIND_LABELS = {
-    "movie": "Movie",
-    "concert": "Concert",
+    "movie": "Film",
+    "concert": "Music",
     "comedy": "Comedy",
-    "live_performance": "Live",
+    "live_performance": "Theater",
     "special_event": "Special",
+}
+
+# One vocabulary across sources. Ticketmaster alone produced "Theatre",
+# "Arts & Theatre" and "Performance Art" for the same kind of show, and
+# "Concert"/"Music" both meant "genre unknown".
+GENRE_LABELS = {
+    "rock": "Rock & Metal", "alternative": "Rock & Metal", "metal": "Rock & Metal",
+    "punk": "Rock & Metal", "hard rock": "Rock & Metal",
+    "pop": "Pop",
+    "country": "Country & Folk", "folk": "Country & Folk", "bluegrass": "Country & Folk",
+    "hip-hop/rap": "Hip-Hop & R&B", "r&b": "Hip-Hop & R&B", "soul": "Hip-Hop & R&B",
+    "dance/electronic": "Electronic", "electronic": "Electronic",
+    "jazz": "Jazz & Blues", "blues": "Jazz & Blues",
+    "latin": "Latin & World", "world": "Latin & World", "reggae": "Latin & World",
+    "classical": "Classical & Dance", "dance": "Classical & Dance", "ballet": "Classical & Dance",
+    "opera": "Classical & Dance",
+    "theatre": "Theater", "theater": "Theater", "arts & theatre": "Theater",
+    "performance art": "Theater", "musical": "Theater", "broadway": "Theater",
+    "comedy": "Comedy",
+    "movie": "Film", "film": "Film", "animation": "Film",
+    "family": "Family", "children's theatre": "Family",
 }
 
 
 def category(event) -> str:
-    """At-a-glance label: the source's own genre when it gave us one, else the kind."""
+    """At-a-glance label: the source's genre mapped onto GENRE_LABELS, else the
+    event kind. Genres we have no mapping for ("Religious", "Music", ...) fall
+    back to the kind rather than adding one-off labels to the filter."""
     attrs = event.attrs or {}
     for key in ("genre", "subgenre", "segment"):
-        value = attrs.get(key)
-        if value and str(value).lower() not in ("undefined", "other", "miscellaneous"):
-            return str(value)
+        value = str(attrs.get(key) or "").strip().lower()
+        if value in GENRE_LABELS:
+            return GENRE_LABELS[value]
     return KIND_LABELS.get(event.kind, event.kind.replace("_", " ").title())
 
 

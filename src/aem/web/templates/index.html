@@ -11,6 +11,18 @@
 </section>
 {% endif %}
 
+{% if watched_shows %}
+<section>
+  <h3>⭐ Your watchlist <small class="muted">{{ watched_count }} upcoming show{{ 's' if watched_count != 1 }}
+    {%- if watched_count > watched_shows | length %} · <a href="/events?watched=1">see all</a>{% endif %}</small></h3>
+  <ul class="rows">
+    {% for row in watched_shows %}{% include "_row.html" %}{% endfor %}
+  </ul>
+</section>
+{% elif not has_watchlist %}
+<p class="muted">⭐ <a href="/watchlist">Start a watchlist</a> to see the artists and venues you care about first.</p>
+{% endif %}
+
 <section>
   <h3>🎉 {{ weekend_title }} <small class="muted">
     {%- if weekend_start == weekend_end %} {{ weekend_start.strftime('%a %b') }} {{ weekend_start.day }}
