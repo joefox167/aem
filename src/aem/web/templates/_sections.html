@@ -1,7 +1,21 @@
-{# expects `sections`: [(label, [Row, ...]), ...] #}
+{# expects `sections`: [(label, [Row, ...]), ...]
+   optional: `cap` (rows per section, then a "See all" link),
+             `continued` (first section carries on from the previous page: no heading) #}
 {% for label, rows in sections %}
+{%- set days = rows | map(attribute='day') | unique | list %}
+{%- set one_day = days[0] if days | length == 1 and days[0] and label != 'Now showing' else none %}
+{%- if not (loop.first and continued) %}
 <h4 class="section">{{ label }} <small>{{ rows | length }}</small></h4>
+{%- endif %}
 <ul class="rows">
-  {% for row in rows %}{% include "_row.html" %}{% endfor %}
+  {%- set hide_date = one_day is not none %}
+  {% for row in (rows[:cap] if cap else rows) %}{% include "_row.html" %}{% endfor %}
 </ul>
+{%- if cap and rows | length > cap %}
+<p class="see-all"><a href="{{ '/events?day=' ~ one_day.isoformat() if one_day else '/events' }}">
+  See all {{ rows | length }}
+  {%- if label in ('Today', 'Tomorrow') %} {{ label | lower }}
+  {%- elif one_day %} on {{ one_day.strftime('%A') }}
+  {%- else %} · {{ label | lower }}{% endif %} →</a></p>
+{%- endif %}
 {% endfor %}

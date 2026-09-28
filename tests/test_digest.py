@@ -2,6 +2,7 @@ from unittest.mock import Mock, patch
 
 from sqlalchemy import select
 
+from aem import changes
 from aem.config import AppConfig, Settings
 from aem.models import ChangeLog, Event, Venue
 from aem.notify import digest
@@ -336,7 +337,57 @@ def test_identical_status_changes_across_a_run_merge(session_factory):
 def test_date_range_formatting():
     from datetime import datetime
     tz = "America/Chicago"
-    assert digest._date_range(datetime(2027, 5, 20), datetime(2027, 5, 20), tz) == \
+    assert changes.date_range(datetime(2027, 5, 20), datetime(2027, 5, 20), tz) == \
         "Thu May 20, 2027"
-    assert digest._date_range(datetime(2026, 12, 30), datetime(2027, 1, 2), tz) == \
+    assert changes.date_range(datetime(2026, 12, 30), datetime(2027, 1, 2), tz) == \
         "Wed Dec 30, 2026 – Sat Jan 2, 2027"
+
+
+
+def test_ticket_status_to_unknown_is_not_news(session_factory):
+    _seed_run(session_factory, days=(20,))
+    with session_factory() as s:
+        ev = s.scalar(select(Event))
+        s.add(ChangeLog(event_id=ev.id, change_type="ticket_status",
+                        field_changes={"ticket_status": ["sold_out", "unknown"]}))
+        s.commit()
+        data = digest.build_digest(s, AppConfig())
+    assert data["ticket_changes"] == []
+    assert data["minor_updates"] == 1
+    assert data["total"] == 2  # still stamped with the rest
+
+
+def test_changes_feed_groups_by_day_and_show(session_factory):
+    from aem.fmt import local_today
+    _seed_run(session_factory, days=(20, 21, 22), status_change_on=(21,))
+    with session_factory() as s:
+        rows = s.scalars(select(ChangeLog)).all()
+        days = changes.feed(s, rows, "America/Chicago", local_today("America/Chicago"))
+    assert len(days) == 1
+    title, entries = days[0]
+    assert title == "Today"
+    assert [(e["label"], e["count"]) for e in entries] == [("Added", 3), ("Tickets", 1)]
+    assert entries[1]["detail"] == "Sold out"
+
+
+def test_describe_change_is_plain_english():
+    from datetime import datetime
+    c = ChangeLog(change_type="updated",
+                  field_changes={"starts_at": ["2026-10-03T01:00:00", "2026-10-04T01:00:00"]},
+                  detected_at=datetime(2026, 9, 28))
+    label, detail = changes.describe_change(c, "America/Chicago")
+    assert label == "Changed"
+    assert "starts_at" not in detail and "T01:00" not in detail
+    assert detail.startswith("moved Fri Oct 02, 2026")
+
+
+
+def test_date_flicker_to_and_from_empty_is_not_news():
+    from datetime import datetime
+    flicker = ChangeLog(change_type="updated", detected_at=datetime(2026, 9, 14),
+                        field_changes={"starts_at": [None, "2026-01-21T00:00:00"],
+                                       "ends_at": [None, "2027-05-31T00:00:00"]})
+    assert not changes.is_news(flicker)
+    moved = ChangeLog(change_type="updated", detected_at=datetime(2026, 9, 14),
+                      field_changes={"starts_at": ["2026-10-03T01:00:00", "2026-10-04T01:00:00"]})
+    assert changes.is_news(moved)

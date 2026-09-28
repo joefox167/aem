@@ -42,7 +42,7 @@ REMOVED
 {% endfor %}
 {% endif %}
 {% if minor_updates %}
-{{ minor_updates }} minor update{{ 's' if minor_updates != 1 }} not shown (ticket link or end time only).
+{{ minor_updates }} minor update{{ 's' if minor_updates != 1 }} not shown (ticket links, end times and similar housekeeping).
 {% endif %}
 {% if total == 0 %}
 No changes since the last digest.

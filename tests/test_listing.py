@@ -99,7 +99,7 @@ def test_section_label_this_week_before_weekend():
     assert listing.section_label(date(2026, 10, 2), monday) == "This weekend"
 
 
-def test_sections_are_chronological_with_tba_last():
+def test_sections_are_chronological_with_runs_then_tba_last():
     rows = [
         _row(title="tba", eid=1),
         _row(title="later", starts_at=datetime(2026, 11, 5, 2), eid=2),
@@ -108,8 +108,9 @@ def test_sections_are_chronological_with_tba_last():
              kind="movie", eid=4),
     ]
     got = [(label, [r.event.title for r in rs]) for label, rs in listing.sections(rows, TODAY)]
-    assert got == [("Now showing", ["run"]), ("Today", ["today"]),
-                   ("November", ["later"]), ("Date TBA", ["tba"])]
+    # long runs go after the dated events, so they don't head every list
+    assert got == [("Today", ["today"]), ("November", ["later"]),
+                   ("Now showing", ["run"]), ("Date TBA", ["tba"])]
 
 
 def test_is_current_hides_past_events_but_keeps_running_ones():
@@ -336,3 +337,55 @@ def test_just_announced_groups_performances(client, session_factory):
     assert html.count(">Harry Potter</a>") == 1
     html = client.get("/events?new=1").text
     assert "Harry Potter" in html and "Presale Comic" not in html
+
+
+
+# --- paging / day filter ----------------------------------------------------
+
+def test_paginate_continues_a_section_without_repeating_it():
+    rows = [_row(title=f"e{i}", starts_at=datetime(2026, 10, 20, 1) + timedelta(minutes=i),
+                 eid=i) for i in range(5)]
+    secs = listing.sections(rows, TODAY)
+    page1, cont1, more1 = listing.paginate(secs, 1, size=3)
+    page2, cont2, more2 = listing.paginate(secs, 2, size=3)
+    assert [len(r) for _, r in page1] == [3] and not cont1 and more1
+    assert [len(r) for _, r in page2] == [2] and cont2 and not more2
+
+
+def test_day_filter_matches_that_day_only():
+    fri = _row(title="fri", starts_at=datetime(2026, 10, 3, 1), eid=1)
+    run = _row(title="run", kind="movie", starts_at=datetime(2026, 9, 1),
+               ends_at=datetime(2026, 12, 1), eid=2)
+    assert listing.apply_filters([fri, run], TODAY, day=date(2026, 10, 2)) == [fri]
+
+
+def test_events_show_more_returns_just_the_next_page(client, session_factory):
+    now = utcnow()
+    with session_factory() as s:
+        for i in range(70):
+            s.add(Event(source="t", source_key=f"p{i}", venue_id=1, kind="concert",
+                        title=f"Band {i:02d}", title_norm=f"band {i}", content_hash="p",
+                        starts_at=now + timedelta(days=20, minutes=i), first_seen=now - timedelta(days=9)))
+        s.commit()
+    html = client.get("/events").text
+    assert "Show more" in html and "72 events" in html
+    more = client.get("/events?page=2", headers={"HX-Request": "true"}).text
+    assert "<html" not in more and 'id="browse"' not in more
+    assert "Band 69" in more and "Show more" not in more
+
+
+def test_dashboard_caps_sections_and_links_to_the_day(client, session_factory):
+    from aem.fmt import local_today
+    now = utcnow()
+    with session_factory() as s:
+        for i in range(8):
+            s.add(Event(source="t", source_key=f"d{i}", venue_id=1, kind="concert",
+                        title=f"Tomorrow Act {i}", title_norm=f"tomorrow act {i}", content_hash="d",
+                        starts_at=now + timedelta(days=1, minutes=i), first_seen=now - timedelta(days=9)))
+        s.commit()
+    html = client.get("/").text
+    shown = html.count(">Tomorrow Act ")
+    assert shown <= 5
+    tomorrow = local_today("America/Chicago") + timedelta(days=1)
+    assert "See all" in html and ("/events?day=" + tomorrow.isoformat()) in html
+    assert "Recent changes" not in html and 'href="/changes"' in html

@@ -1,0 +1,7 @@
+{# one page of results + the button that fetches the next; "Show more" swaps
+   itself out for the next page #}
+{% include "_sections.html" %}
+{% if next_page %}
+<p id="more"><a role="button" class="secondary outline" href="{{ next_url }}"
+   hx-get="{{ next_url }}" hx-target="#more" hx-swap="outerHTML">Show more</a></p>
+{% endif %}

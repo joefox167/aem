@@ -195,11 +195,14 @@ def group_shows(rows: list[Row]) -> list[Row]:
 
 
 def sections(rows: list[Row], today: date) -> list[tuple[str, list[Row]]]:
-    """Consecutive date sections in chronological order; runs already playing
-    first, undated events last. Labels are monotonic in date, so grouping the
-    sorted rows by label never splits a section."""
+    """Consecutive date sections in chronological order, then films on long runs
+    ("Now showing") and undated events last: a museum's year-long IMAX runs
+    would otherwise head every list. Labels are monotonic within the dated part,
+    so grouping the sorted rows by label never splits a section."""
     out: list[tuple[str, list[Row]]] = []
-    for row in merge_performances(rows):
+    ordered = sorted(merge_performances(rows),
+                     key=lambda r: (r.day is None, r.day is not None and r.day < today))
+    for row in ordered:
         label = section_label(row.day, today)
         if out and out[-1][0] == label:
             out[-1][1].append(row)
@@ -257,11 +260,13 @@ def is_new(row: Row) -> bool:
 
 
 def apply_filters(rows: list[Row], today: date, *, kind: str = "", genre: str = "",
-                  venue: int | None = None, when: str = "", new: bool = False) -> list[Row]:
+                  venue: int | None = None, when: str = "", new: bool = False,
+                  day: date | None = None) -> list[Row]:
     kinds = KIND_FILTERS.get(kind, KIND_FILTERS[""])[1]
     return [
         r for r in rows
         if (not new or is_new(r))
+        and (day is None or r.day == day)
         and (kinds is None or r.event.kind in kinds)
         and (not genre or r.category == genre)
         and (venue is None or r.event.venue_id == venue)
@@ -282,3 +287,26 @@ def facet_counts(rows: list[Row]) -> tuple[list[tuple[str, int]], list[tuple[int
     venue_opts = sorted(((vid, n, c) for vid, (n, c) in venues.items()),
                         key=lambda v: (-v[2], v[1]))
     return genre_opts, venue_opts
+
+
+PAGE_SIZE = 60
+
+
+def paginate(secs: list[tuple[str, list[Row]]], page: int, size: int = PAGE_SIZE):
+    """One page of rows, regrouped into sections.
+
+    Returns (sections, continued, has_more): `continued` means the first
+    section on this page carries on from the previous one, so its heading
+    isn't repeated when "Show more" appends it.
+    """
+    flat = [(label, row) for label, rows in secs for row in rows]
+    start = (max(page, 1) - 1) * size
+    chunk = flat[start:start + size]
+    out: list[tuple[str, list[Row]]] = []
+    for label, row in chunk:
+        if out and out[-1][0] == label:
+            out[-1][1].append(row)
+        else:
+            out.append((label, [row]))
+    continued = bool(chunk) and start > 0 and flat[start - 1][0] == chunk[0][0]
+    return out, continued, start + size < len(flat)

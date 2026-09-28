@@ -21,7 +21,7 @@
     .venue-chip { display:inline-block; padding:.05rem .45rem; border:1px solid var(--pico-muted-border-color);
                   border-radius:.75rem; font-size:.7rem; margin-right:.25rem; }
     .muted { color: var(--pico-muted-color); font-size:.85rem; }
-    nav strong { font-size:1.1rem; }
+    nav strong { font-size:1.1rem; white-space:nowrap; }
     section { margin-bottom: 2.5rem; }
     li.item { margin-bottom:.6rem; list-style:none; }
     ul.plain { padding-left:0; }
@@ -32,8 +32,14 @@
     h4.section small { font-weight:400; margin-left:.35rem; }
     ul.rows { padding:0; margin:0; }
     li.row { list-style:none; display:grid; grid-template-columns:3.4rem 1fr auto;
-             gap:.2rem 1rem; align-items:center; padding:.65rem 0;
+             gap:.2rem 1rem; align-items:center; padding:.55rem 0; position:relative;
              border-bottom:1px solid var(--pico-muted-border-color); }
+    li.row.nodate { grid-template-columns:1fr auto; }
+    /* the whole row opens the event; ticket links sit above the stretched title link */
+    .row .title::after { content:""; position:absolute; inset:0; }
+    .row a.tix, .row a.tix-link { position:relative; z-index:1; }
+    .row .narrow { display:none; }
+    p.see-all { margin:.4rem 0 0; font-size:.85rem; }
     .dateblock { text-align:center; line-height:1.15; padding:.3rem 0; border-radius:.5rem;
                  background:var(--pico-card-sectioning-background-color); }
     .dateblock .mon, .dateblock .dow { display:block; font-size:.65rem; text-transform:uppercase;
@@ -52,9 +58,25 @@
     .tag.soon { background:#8250df; }
     .tag.new { background:#1a7f37; }
     .tag.removed { background:#57606a; }
+    .tag.chg-added { background:#1a7f37; }
+    .tag.chg-tickets { background:#8250df; }
+    .tag.chg-changed { background:#0969da; }
+    .tag.chg-removed { background:#57606a; }
+    ul.changes { padding:0; }
+    ul.changes li { list-style:none; padding:.5rem 0;
+                    border-bottom:1px solid var(--pico-muted-border-color); }
+    ul.changes .meta { color:var(--pico-muted-color); font-size:.85rem; }
     @media (max-width: 576px) {
-      li.row { grid-template-columns:3rem 1fr; }
-      .row .side { grid-column:2; flex-direction:row; align-items:center; }
+      /* phone: no side column -- price and tickets move into the details line */
+      li.row { grid-template-columns:3rem 1fr; gap:.2rem .75rem; }
+      li.row.nodate { grid-template-columns:1fr; }
+      .row .wide { display:none; }
+      .row .narrow { display:inline; }
+      /* the AEM logo already links home, so the phone nav drops "Dashboard" and
+         may wrap rather than push the page sideways */
+      nav .nav-home { display:none; }
+      nav ul:last-child { flex-wrap:wrap; justify-content:flex-end; }
+      nav ul li { padding-left:.35rem; padding-right:.35rem; }
     }
 
     /* filter bar */
@@ -75,9 +97,10 @@
   <nav>
     <ul><li><strong><a href="/" class="contrast" style="text-decoration:none">🤠 AEM</a></strong></li></ul>
     <ul>
-      <li><a href="/">Dashboard</a></li>
+      <li class="nav-home"><a href="/">Dashboard</a></li>
       <li><a href="/events">Events</a></li>
       <li><a href="/movies">Movies</a></li>
+      <li><a href="/changes">Changes</a></li>
       <li><a href="/search">Search</a></li>
     </ul>
   </nav>

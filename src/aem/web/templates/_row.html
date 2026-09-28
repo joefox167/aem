@@ -1,5 +1,8 @@
-{# one event, compact: date block | title, badges, details | price + tickets #}
-<li class="row">
+{# one event, compact. The title link is stretched over the whole row (CSS) so
+   anywhere taps through to the event; the tickets link sits above it.
+   `hide_date`: the section heading already names the day, so skip the date block. #}
+<li class="row{{ ' nodate' if hide_date }}">
+  {%- if not hide_date %}
   <div class="dateblock">
     {%- if row.day %}
     <span class="mon">{{ row.day.strftime('%b') }}</span>
@@ -7,7 +10,8 @@
     <span class="dow">{{ row.day.strftime('%a') }}</span>
     {%- else %}<span class="tba">TBA</span>{% endif %}
   </div>
-  <div>
+  {%- endif %}
+  <div class="main">
     <a class="title" href="/event/{{ row.event.id }}">{{ row.event.title }}</a>
     {%- for css, label in row.badges %} <span class="tag {{ css }}">{{ label }}</span>{% endfor %}
     <div class="meta">
@@ -17,10 +21,13 @@
       {%- if row.end_day %} · through {{ row.end_day.strftime('%a %b') }} {{ row.end_day.day }}{% endif %}
       · {{ row.category }}
       {%- if row.event.attrs.get('format') and row.event.attrs.format != 'Standard' %} · {{ row.event.attrs.format }}{% endif %}
+      {#- phone: price and tickets ride along in the details line #}
+      {%- if row.price %}<span class="narrow"> · {{ row.price }}</span>{% endif %}
+      {%- if row.event.ticket_url %}<span class="narrow"> · <a class="tix-link" href="{{ row.event.ticket_url }}" target="_blank" rel="noopener">Tickets ↗</a></span>{% endif %}
     </div>
     {%- if row.openers %}<div class="meta">with {{ row.openers | join(', ') }}</div>{% endif %}
   </div>
-  <div class="side">
+  <div class="side wide">
     {%- if row.price %}<span class="price">{{ row.price }}</span>{% endif %}
     {%- if row.event.ticket_url %}<a class="tix outline" role="button" href="{{ row.event.ticket_url }}" target="_blank" rel="noopener">Tickets</a>{% endif %}
   </div>

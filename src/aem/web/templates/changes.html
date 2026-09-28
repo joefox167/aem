@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Changes{% endblock %}
+{% block content %}
+<h3>🔄 What changed <small class="muted">last {{ changes_days }} days</small></h3>
+{% for title, entries in days %}
+<h4 class="section">{{ title }} <small>{{ entries | length }}</small></h4>
+<ul class="changes">
+  {% for e in entries %}
+  <li>
+    <span class="tag chg-{{ e.label | lower }}">{{ e.label }}</span>
+    <a href="/event/{{ e.event.id }}">{{ e.event.title }}</a>
+    <div class="meta">
+      {{ e.venue }} · {% if e.count > 1 %}{{ e.count }} performances · {% endif %}{{ e.when }}
+      {%- if e.label in ('Tickets', 'Changed') %} · <strong>{{ e.detail }}</strong>{% endif %}
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="muted">Nothing changed in the last {{ changes_days }} days.</p>
+{% endfor %}
+{% endblock %}

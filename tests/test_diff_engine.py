@@ -168,3 +168,26 @@ async def test_error_isolation_between_collectors(session_factory, cfg):
     assert "error" not in results["fake"]
     with session_factory() as s:
         assert s.scalar(select(Event)) is not None
+
+
+async def test_missing_dates_keep_the_stored_ones(session_factory, cfg):
+    """Bullock film runs render without their dates every few polls; that must not
+    log a wipe-then-restore pair of "updated" changes."""
+    end = FIXED_START + timedelta(days=90)
+    col = FakeCollector()
+    col.batch = [make_event("k1", ends_at=end)]
+    await poll_collectors(session_factory, [col], cfg)
+
+    col.batch = [make_event("k1", starts_at=None, ends_at=None)]
+    await poll_collectors(session_factory, [col], cfg)
+    col.batch = [make_event("k1", ends_at=end)]
+    await poll_collectors(session_factory, [col], cfg)
+    assert changes_of(session_factory, "updated") == []
+    with session_factory() as s:
+        ev = s.scalar(select(Event))
+        assert (ev.starts_at, ev.ends_at) == (FIXED_START, end)
+
+    # a real date change is still reported
+    col.batch = [make_event("k1", starts_at=FIXED_START + timedelta(days=1), ends_at=end)]
+    await poll_collectors(session_factory, [col], cfg)
+    assert len(changes_of(session_factory, "updated")) == 1

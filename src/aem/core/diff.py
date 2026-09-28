@@ -20,7 +20,10 @@ MEANINGFUL_ATTRS = ("openers", "format", "tour", "series", "special_presentation
 
 def resolve(raw: RawEvent, existing: Event | None) -> dict:
     """Merge a RawEvent with the stored event, honoring None-means-preserve
-    semantics for ticket_url/ticket_status (e.g. detail page not re-fetched)."""
+    semantics for ticket_url/ticket_status (e.g. detail page not re-fetched)
+    and for starts_at/ends_at: a listing that renders without its dates one
+    poll (Bullock film runs did, every few days) hasn't really lost them, and
+    wiping then restoring them logged a pair of false "updated" changes each time."""
     ticket_status = raw.ticket_status.value if raw.ticket_status is not None else (
         existing.ticket_status if existing else TicketStatus.unknown.value
     )
@@ -29,10 +32,16 @@ def resolve(raw: RawEvent, existing: Event | None) -> dict:
     )
     attrs = dict(existing.attrs) if existing else {}
     attrs.update(raw.attrs)
+    starts_at = raw.starts_at if raw.starts_at is not None else (
+        existing.starts_at if existing else None
+    )
+    ends_at = raw.ends_at if raw.ends_at is not None else (
+        existing.ends_at if existing else None
+    )
     return {
         "title": raw.title,
-        "starts_at": raw.starts_at,
-        "ends_at": raw.ends_at,
+        "starts_at": starts_at,
+        "ends_at": ends_at,
         "event_url": raw.event_url,
         "ticket_url": ticket_url,
         "ticket_status": ticket_status,

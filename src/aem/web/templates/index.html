@@ -17,7 +17,7 @@
     {%- else %} {{ weekend_start.strftime('%a %b') }} {{ weekend_start.day }} – {{ weekend_end.strftime('%a %b') }} {{ weekend_end.day }}{% endif %}
     · <a href="/events?when=weekend">filter</a></small></h3>
   {% if weekend %}
-    {% with sections = weekend %}{% include "_sections.html" %}{% endwith %}
+    {% with sections = weekend, cap = per_section %}{% include "_sections.html" %}{% endwith %}
   {% else %}<p class="muted">Nothing listed for the weekend yet.</p>{% endif %}
   {% if weekend_runs %}<p class="muted">Plus {{ weekend_runs }} film{{ 's' if weekend_runs != 1 }} playing all weekend · <a href="/movies">see movies</a></p>{% endif %}
 </section>
@@ -36,30 +36,10 @@
 <section>
   <h3>📅 Coming up <small class="muted">next {{ upcoming_days }} days, outside the weekend · {{ upcoming_count }} events · <a href="/events">browse all</a></small></h3>
   {% if upcoming %}
-    {% with sections = upcoming %}{% include "_sections.html" %}{% endwith %}
+    {% with sections = upcoming, cap = per_section %}{% include "_sections.html" %}{% endwith %}
   {% else %}<p class="muted">No dated events in the next two weeks.</p>{% endif %}
 </section>
 
-<section>
-  <h3>🔄 Recent changes (7 days)</h3>
-  {% if recent %}
-  <ul class="plain">
-    {% for item in recent %}
-    <li class="item">
-      <span class="badge {{ item.change.change_type }}">{{ item.change.change_type.replace('_',' ') }}</span>
-      <a href="/event/{{ item.event.id }}">{{ item.event.title }}</a>
-      <span class="muted">— {{ item.venue.name if item.venue else '?' }} · {{ fmt(item.change.detected_at) }}</span>
-      {% if item.change.field_changes %}
-      <br><span class="muted">
-        {% for field, vals in item.change.field_changes.items() %}
-          {{ field }}: {{ vals[0] if vals[0] is not none else '—' }} → {{ vals[1] if vals[1] is not none else '—' }}{{ "; " if not loop.last }}
-        {% endfor %}
-      </span>
-      {% endif %}
-    </li>
-    {% endfor %}
-  </ul>
-  {% else %}<p class="muted">No changes detected in the last week.</p>{% endif %}
-</section>
+<p class="muted"><a href="/changes">🔄 What changed this week →</a></p>
 
 {% endblock %}
