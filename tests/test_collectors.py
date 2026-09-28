@@ -266,7 +266,8 @@ async def test_paramount_maps_wordpress_events(ctx, paramount_now):
     assert film.ends_at is None
     assert film.ticket_status == TicketStatus.on_sale
     assert film.ticket_url == "https://tickets.austintheatre.org/14166"
-    assert film.event_url == "https://www.austintheatre.org/event/project-hail-mary/"
+    # the WordPress event page is dead site-wide; the ticketing page is the event page
+    assert film.event_url == "https://tickets.austintheatre.org/14166" == film.ticket_url
 
     # a two-night run spans first performance to last
     run = by_key["21474"]
@@ -431,3 +432,25 @@ def test_bullock_poster_from_listing_card():
     assert _poster(img) == "b.jpg"
     assert _poster(HTMLParser('<img src="only.jpg">').css_first("img")) == "only.jpg"
     assert _poster(None) is None
+
+
+
+def test_acl_detail_page_picture_and_checked_marker():
+    from aem.collectors.acl_live import _parse_detail
+    detail = _parse_detail(fixture_text("acl_event.html"))
+    assert detail["image_url"] == \
+        "https://images.discovery-prod.axs.com/2026/03/uploadedimage_69b2e0878c553.jpg"
+    # a page without og:image is recorded as checked ("") so it isn't refetched
+    assert _parse_detail("<html><body></body></html>")["image_url"] == ""
+
+
+def test_paramount_picture_from_the_feed():
+    from aem.collectors.paramount import _map_event as map_paramount
+    items = json.loads(fixture_text("paramount_events.json"))
+    now = datetime(2020, 1, 1)
+    it = next(i for i in items if map_paramount(i, now) is not None)
+    it = {**it, "acf": {**(it.get("acf") or {}), "event_image": {"url": "https://s3.example/p.jpg"}}}
+    assert map_paramount(it, now).attrs["image_url"] == "https://s3.example/p.jpg"
+    it["acf"]["event_image"] = {"url": ""}
+    it["acf"]["event_poster_image"] = {"url": "https://s3.example/poster.jpg"}
+    assert map_paramount(it, now).attrs["image_url"] == "https://s3.example/poster.jpg"

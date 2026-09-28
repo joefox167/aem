@@ -51,17 +51,15 @@ def _known_keys(session: Session, collector_id: str) -> set[str]:
     return set(rows)
 
 
-def _stale_status_keys(session: Session, collector_id: str) -> set[str]:
-    """Active events whose ticket status we never learned — candidates for a
-    detail refresh when the collector has spare fetch budget."""
-    rows = session.scalars(
-        select(Event.source_key).where(
-            Event.source == collector_id,
-            Event.status == "active",
-            Event.ticket_status == "unknown",
-        )
+def _refresh_keys(session: Session, collector_id: str) -> set[str]:
+    """Active events worth a detail refresh when the collector has spare fetch
+    budget: ticket status never learned, or never checked for a picture
+    (no `image_url` key at all; "" means checked and there was none)."""
+    events = session.scalars(
+        select(Event).where(Event.source == collector_id, Event.status == "active")
     ).all()
-    return set(rows)
+    return {e.source_key for e in events
+            if e.ticket_status == "unknown" or "image_url" not in (e.attrs or {})}
 
 
 def _upsert_batch(session: Session, collector: Collector, batch: list[RawEvent],
@@ -128,10 +126,13 @@ def _upsert_batch(session: Session, collector: Collector, batch: list[RawEvent],
         existing.missing_polls = 0
         existing.status = "active"
         existing.venue_id = venue.id
-        # informational attrs (image, price) change without it being news:
-        # save them, but log nothing
-        if existing.content_hash == new_hash and not changes and existing.attrs != resolved["attrs"]:
-            existing.attrs = resolved["attrs"]
+        # informational fields (image, price, the event page link) change without
+        # it being news: save them, but log nothing
+        if existing.content_hash == new_hash and not changes:
+            if existing.attrs != resolved["attrs"]:
+                existing.attrs = resolved["attrs"]
+            if resolved["event_url"] and existing.event_url != resolved["event_url"]:
+                existing.event_url = resolved["event_url"]
         if existing.content_hash != new_hash or changes:
             old_status = existing.ticket_status
             existing.title = raw.title
@@ -209,7 +210,7 @@ async def poll_collectors(session_factory: sessionmaker, collectors: list[Collec
             ctx = FetchContext(
                 session,
                 known_keys=_known_keys(session, collector.id),
-                refresh_keys=_stale_status_keys(session, collector.id),
+                refresh_keys=_refresh_keys(session, collector.id),
             )
             try:
                 first_run = _is_first_run(session, collector.id)

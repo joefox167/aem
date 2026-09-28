@@ -76,7 +76,7 @@ def _venue_slug(location: str) -> str:
 
 
 def _parse_detail(html: str) -> dict:
-    """Extract tour, openers, ticket URL and sale status from a detail page."""
+    """Extract tour, openers, ticket URL, sale status and picture from a detail page."""
     tree = HTMLParser(html)
     out: dict = {}
 
@@ -111,6 +111,9 @@ def _parse_detail(html: str) -> dict:
         out["ticket_url"] = ticket_url
     if status:
         out["ticket_status"] = status
+    # "" = page checked, no picture; keeps it off the refresh list next time
+    og = tree.css_first('meta[property="og:image"]')
+    out["image_url"] = ((og.attributes.get("content") or "").strip() if og else "")
     return out
 
 
@@ -123,7 +126,10 @@ class AclLiveCollector(Collector):
     ]
 
     async def fetch(self, ctx: FetchContext) -> list[RawEvent]:
-        resp = await ctx.get(RSS_URL, conditional=True)
+        # while events are waiting on a detail refresh (unknown status, or never
+        # checked for a picture), read the feed even if unchanged: a 304 would
+        # skip every detail fetch and stall the backfill
+        resp = await ctx.get(RSS_URL, conditional=not ctx.refresh_keys)
         if resp is None:
             raise NotModified
         items = _parse_rss(resp.text)
@@ -159,5 +165,7 @@ class AclLiveCollector(Collector):
                     ev.attrs["openers"] = detail["openers"]
                 ev.ticket_url = detail.get("ticket_url")
                 ev.ticket_status = detail.get("ticket_status")
+                if "image_url" in detail:
+                    ev.attrs["image_url"] = detail["image_url"]
             events.append(ev)
         return events

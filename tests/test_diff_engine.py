@@ -206,3 +206,32 @@ async def test_new_image_is_saved_without_logging_a_change(session_factory, cfg)
         ev = s.scalar(select(Event))
         assert ev.attrs["image_url"] == "https://img.example/a.jpg"
         assert ev.attrs["price_max"] == 40
+
+
+async def test_event_link_fix_is_saved_without_logging_a_change(session_factory, cfg):
+    col = FakeCollector()
+    col.batch = [make_event("k1", event_url="https://dead.example/event/")]
+    await poll_collectors(session_factory, [col], cfg)
+    col.batch = [make_event("k1", event_url="https://tickets.example/1")]
+    await poll_collectors(session_factory, [col], cfg)
+    assert changes_of(session_factory, "updated") == []
+    with session_factory() as s:
+        assert s.scalar(select(Event)).event_url == "https://tickets.example/1"
+
+
+def test_refresh_list_includes_events_never_checked_for_a_picture(session_factory):
+    from aem.core.ingest import _refresh_keys
+    from aem.models import Venue
+    with session_factory() as s:
+        v = Venue(source="fake", name="V", slug="v")
+        s.add(v)
+        s.flush()
+        for key, status, attrs in (("unchecked", "on_sale", {}),
+                                   ("checked-none", "on_sale", {"image_url": ""}),
+                                   ("has-pic", "on_sale", {"image_url": "https://x/y.jpg"}),
+                                   ("unknown-status", "unknown", {"image_url": ""})):
+            s.add(Event(source="fake", source_key=key, venue_id=v.id, kind="concert",
+                        title=key, title_norm=key, content_hash="h",
+                        ticket_status=status, attrs=attrs))
+        s.commit()
+        assert _refresh_keys(s, "fake") == {"unchecked", "unknown-status"}

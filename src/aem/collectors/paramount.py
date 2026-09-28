@@ -165,6 +165,13 @@ def _map_event(item: dict, now: datetime) -> RawEvent | None:
     if custom:
         attrs["custom_text"] = html.unescape(custom)
 
+    acf = item.get("acf") or {}
+    image = ((acf.get("event_image") or {}).get("url")
+             or (acf.get("event_poster_image") or {}).get("url"))
+    if image:
+        attrs["image_url"] = image
+    ticket_url = TICKET_URL.format(season_id=season_id) if season_id else None
+
     return RawEvent(
         source_key=str(event_id),
         kind=KIND_BY_TYPE.get(type_slug, EventKind.special_event),
@@ -173,8 +180,10 @@ def _map_event(item: dict, now: datetime) -> RawEvent | None:
         venue_name=venue_name,
         starts_at=performances[0],
         ends_at=performances[-1] if len(performances) > 1 else None,
-        event_url=item.get("link"),
-        ticket_url=TICKET_URL.format(season_id=season_id) if season_id else None,
+        # the WordPress `link` (austintheatre.org/event/<slug>/) is a dead page
+        # site-wide; the ticketing page is where the event actually lives
+        event_url=ticket_url,
+        ticket_url=ticket_url,
         ticket_status=status,
         attrs=attrs,
     )
